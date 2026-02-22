@@ -242,7 +242,7 @@ def dayun_start_age(dt_solar, jie12_solar, forward):
     delta_days=(next_t-dt_solar).total_seconds()/86400.0 if forward else (dt_solar-prev_t).total_seconds()/86400.0
     return max(0,round_half_up(delta_days/3.0))
 
-def build_dayun_list(month_gidx, month_bidx, forward, start_age, count=8):
+def build_dayun_list(month_gidx, month_bidx, forward, start_age, count=13):
     dirv=1 if forward else -1
     out=[]
     for i in range(1,count+1):
@@ -423,7 +423,7 @@ body,.stApp{background:var(--bg)!important;color:var(--text)!important;font-fami
 .block-container{padding:0.5rem!important;max-width:430px!important;margin:0 auto!important;}
 .stTextInput input,.stNumberInput input{background:#fff!important;color:var(--text)!important;border:1px solid var(--bdr)!important;border-radius:8px!important;}
 .stRadio label{color:var(--text)!important;}
-.stButton>button{background:linear-gradient(135deg,#c8b87a,#a0945e)!important;color:#fff!important;border:1px solid var(--acc)!important;border-radius:6px!important;width:100%!important;font-size:11px!important;font-weight:bold!important;padding:4px 1px!important;white-space:nowrap!important;overflow:hidden;}
+.stButton>button{background:linear-gradient(135deg,#c8b87a,#a0945e)!important;color:#fff!important;border:1px solid var(--acc)!important;border-radius:4px!important;width:100%!important;font-size:10px!important;font-weight:bold!important;padding:1px 0px!important;white-space:nowrap!important;overflow:hidden;min-height:0!important;height:20px!important;line-height:1!important;}
 .page-hdr{background:linear-gradient(135deg,#c8b87a,#a0945e);border-bottom:2px solid var(--acc);padding:10px;text-align:center;font-size:18px;font-weight:bold;color:#fff;letter-spacing:4px;margin-bottom:12px;}
 .saju-wrap{background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--r);padding:10px 4px;margin-bottom:10px;}
 .saju-table{width:100%;border-collapse:separate;border-spacing:3px;table-layout:fixed;}
@@ -448,7 +448,7 @@ body,.stApp{background:var(--bg)!important;color:var(--text)!important;font-fami
 .cal-header{background:#c8b87a;text-align:center;padding:8px;font-size:14px;color:#fff;font-weight:bold;}
 .cal-table{width:100%;border-collapse:collapse;}
 .cal-table th{background:#d4c48a;color:#5a3e0a;font-size:11px;text-align:center;padding:4px 2px;border:1px solid var(--bdr);}
-.cal-table td{text-align:center;padding:3px 1px;border:1px solid var(--bdr);font-size:11px;color:var(--text);vertical-align:top;min-width:38px;height:50px;}
+.cal-table td{text-align:center;padding:2px 1px;border:1px solid var(--bdr);font-size:11px;color:var(--text);vertical-align:top;min-width:38px;height:72px;}
 .cal-table td.empty{background:#f0ece4;}
 .cal-table td .dn{font-size:13px;font-weight:bold;margin-bottom:1px;}
 .cal-table td.today-cell{background:#ffe8a0;border:1px solid var(--acc);}
@@ -493,20 +493,24 @@ def render_saju_table(fp, ilgan):
     html+='</tr></tbody></table></div>'
     return html
 
+
 def render_daeun_card(age, g, j, ilgan, active, btn_key):
     bg_g=GAN_BG.get(g,"#888"); tc_g=gan_fg(g)
     bg_j=BR_BG.get(j,"#888"); tc_j=br_fg(j)
     hj_g=hanja_gan(g); hj_j=hanja_ji(j)
     bdr='2px solid #8b6914' if active else '1px solid #c8b87a'
     bg_card='#d4c48a' if active else '#e8e4d8'
-    ss=f'{six_for_stem(ilgan,g)}/{six_for_branch(ilgan,j)}'
-    st.markdown(f'''<div style="text-align:center;font-size:10px;color:#6b5a3e;margin-bottom:2px">{age}세</div>
+    six_g=six_for_stem(ilgan,g)
+    six_j=six_for_branch(ilgan,j)
+    st.markdown(f'''<div style="text-align:center;font-size:10px;color:#6b5a3e;margin-bottom:1px">{age}세</div>
     <div style="display:flex;flex-direction:column;align-items:center;border:{bdr};border-radius:10px;background:{bg_card};padding:3px 2px;">
-    <div style="width:38px;height:38px;border-radius:6px;background:{bg_g};color:{tc_g};display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:900;margin-bottom:2px">{hj_g}</div>
-    <div style="width:38px;height:38px;border-radius:6px;background:{bg_j};color:{tc_j};display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:900;margin-bottom:2px">{hj_j}</div>
-    <div style="font-size:9px;color:#6b5a3e">{ss}</div>
+    <div style="font-size:9px;color:#5a3e0a;margin-bottom:1px;white-space:nowrap">{six_g}</div>
+    <div style="width:36px;height:36px;border-radius:6px;background:{bg_g};color:{tc_g};display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:900;margin-bottom:1px">{hj_g}</div>
+    <div style="width:36px;height:36px;border-radius:6px;background:{bg_j};color:{tc_j};display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:900;margin-bottom:1px">{hj_j}</div>
+    <div style="font-size:9px;color:#5a3e0a;white-space:nowrap">{six_j}</div>
     </div>''', unsafe_allow_html=True)
     return st.button(f'{age}', key=btn_key, use_container_width=True)
+
 
 def main():
     st.set_page_config(page_title='이박사 만세력', layout='centered', page_icon='🔮', initial_sidebar_state='collapsed')
@@ -620,16 +624,20 @@ def page_saju():
     # 사주 원국
     st.markdown('<div class="sec-title">🏛 사주 원국</div>', unsafe_allow_html=True)
     st.markdown(render_saju_table(fp,ilgan), unsafe_allow_html=True)
-    # 격 박스 - 사령 텍스트 정확하게 표시
-    jieqi_disp=f'절입 +{data["day_from_jieqi"]}일'
+    # 格 박스 - 절입명칭 정확히 표시
+    month_ji=fp['month'][1]
+    pair=MONTH_TO_2TERMS[month_ji]
+    term1_name=pair[0]  # 입절 이름 (입춘/경칩/청명/... 등)
     du_dir='순행' if data['forward'] else '역행'
     du_age=data['start_age']
+    day_from=data['day_from_jieqi']
     st.markdown(f'''<div class="geok-box">
     <div class="geok-name">格 {geok}</div>
     <div class="geok-why">{why}</div>
-    <div class="geok-why" style="margin-top:4px;">{fp['month'][1]}월 司令 ({jieqi_disp}) · 대운 {du_age}세 {du_dir}</div>
+    <div class="geok-why" style="margin-top:4px;">{month_ji}월 司令 ({term1_name} 절입 +{day_from}일) · 대운 {du_age}세 {du_dir}</div>
     </div>''', unsafe_allow_html=True)
-    st.markdown('<div class="sec-title">🎴 대운</div>', unsafe_allow_html=True)
+    # 대운 (오른쪽->왼쪽, 스크롤, 클릭시 월운으로 이동)
+    st.markdown('<div class="sec-title">🎴 대운 (클릭 → 월운)</div>', unsafe_allow_html=True)
     daeun_rev=list(reversed(daeun))
     cols_du=st.columns(len(daeun))
     for ci,col in enumerate(cols_du):
@@ -648,12 +656,14 @@ def page_saju():
                     new_seun.append((sy,CHEONGAN[off%10],JIJI[off%12]))
                 st.session_state.saju_data['seun']=new_seun
                 st.session_state.sel_seun=0
+                st.session_state.page='wolun'
                 st.rerun()
+    # 세운 (오른쪽->왼쪽)
     sel_su=st.session_state.sel_seun
     seun=data["seun"]
     du_item=daeun[sel_du]
     du_g=CHEONGAN[du_item["g_idx"]]; du_j=MONTH_JI[du_item["b_idx"]]
-    st.markdown(f'<div class="sec-title">📅 세운(歲運)</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="sec-title">📅 세운(歲運) — 클릭 → 월운</div>', unsafe_allow_html=True)
     st.markdown(f'<div class="sel-info">선택 대운: {du_item["start_age"]}세 {hanja_gan(du_g)}{hanja_ji(du_j)} ({six_for_stem(ilgan,du_g)}/{six_for_branch(ilgan,du_j)})</div>', unsafe_allow_html=True)
     n_show=min(len(seun),10)
     seun_show=list(reversed(seun[:n_show]))
@@ -668,12 +678,14 @@ def page_saju():
             hj_sg=hanja_gan(sg); hj_sj=hanja_ji(sj)
             bdr='2px solid #8b6914' if active else '1px solid #c8b87a'
             bg_card='#d4c48a' if active else '#e8e4d8'
-            ss=f'{six_for_stem(ilgan,sg)}/{six_for_branch(ilgan,sj)}'
-            st.markdown(f'''<div style="text-align:center;font-size:10px;color:#6b5a3e;margin-bottom:2px">{sy}</div>
-            <div style="display:flex;flex-direction:column;align-items:center;border:{bdr};border-radius:10px;background:{bg_card};padding:3px 2px;">
-            <div style="width:34px;height:34px;border-radius:6px;background:{bg_g};color:{tc_g};display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;margin-bottom:2px">{hj_sg}</div>
-            <div style="width:34px;height:34px;border-radius:6px;background:{bg_j};color:{tc_j};display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;margin-bottom:2px">{hj_sj}</div>
-            <div style="font-size:9px;color:#6b5a3e">{ss}</div>
+            six_g=six_for_stem(ilgan,sg)
+            six_j=six_for_branch(ilgan,sj)
+            st.markdown(f'''<div style="text-align:center;font-size:10px;color:#6b5a3e;margin-bottom:1px">{sy}</div>
+            <div style="display:flex;flex-direction:column;align-items:center;border:{bdr};border-radius:10px;background:{bg_card};padding:2px 2px;">
+            <div style="font-size:9px;color:#5a3e0a;margin-bottom:1px;white-space:nowrap">{six_g}</div>
+            <div style="width:30px;height:30px;border-radius:5px;background:{bg_g};color:{tc_g};display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;margin-bottom:1px">{hj_sg}</div>
+            <div style="width:30px;height:30px;border-radius:5px;background:{bg_j};color:{tc_j};display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;margin-bottom:1px">{hj_sj}</div>
+            <div style="font-size:9px;color:#5a3e0a;white-space:nowrap">{six_j}</div>
             </div>''', unsafe_allow_html=True)
             if st.button(f"'{str(sy)[2:]}", key=f'su_{real_idx}', use_container_width=True):
                 st.session_state.sel_seun=real_idx
@@ -681,7 +693,8 @@ def page_saju():
                 st.session_state.page='wolun'
                 st.rerun()
     gpt_url='https://chatgpt.com/g/g-68d90b2d8f448191b87fb7511fa8f80a-rua-myeongrisajusangdamsa'
-    st.markdown(f'<a href="{gpt_url}" target="_blank" class="ai-btn">🧩 AI 명리 무료상담 클릭 👈</a>', unsafe_allow_html=True)
+    st.markdown(f'<a href="{gpt_url}" target="_blank" class="ai-btn">🤖 AI 챗봇 무료 상담</a>', unsafe_allow_html=True)
+
 
 def page_wolun():
     data=st.session_state.saju_data
@@ -715,19 +728,22 @@ def page_wolun():
                 hj_wg=hanja_gan(wg); hj_wj=hanja_ji(wj)
                 bdr='2px solid #8b6914' if active else '1px solid #c8b87a'
                 bg_card='#d4c48a' if active else '#e8e4d8'
-                ss=f'{six_for_stem(ilgan,wg)}/{six_for_branch(ilgan,wj)}'
-                st.markdown(f'''<div style="text-align:center;font-size:10px;color:#6b5a3e;margin-bottom:2px">{MONTH_KR[wm-1]}</div>
-                <div style="display:flex;flex-direction:column;align-items:center;border:{bdr};border-radius:10px;background:{bg_card};padding:3px 2px;">
-                <div style="width:38px;height:38px;border-radius:6px;background:{bg_g};color:{tc_g};display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:900;margin-bottom:2px">{hj_wg}</div>
-                <div style="width:38px;height:38px;border-radius:6px;background:{bg_j};color:{tc_j};display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:900;margin-bottom:2px">{hj_wj}</div>
-                <div style="font-size:9px;color:#6b5a3e">{ss}</div>
+                six_g=six_for_stem(ilgan,wg)
+                six_j=six_for_branch(ilgan,wj)
+                st.markdown(f'''<div style="text-align:center;font-size:10px;color:#6b5a3e;margin-bottom:1px">{MONTH_KR[wm-1]}</div>
+                <div style="display:flex;flex-direction:column;align-items:center;border:{bdr};border-radius:10px;background:{bg_card};padding:2px 2px;">
+                <div style="font-size:9px;color:#5a3e0a;margin-bottom:1px;white-space:nowrap">{six_g}</div>
+                <div style="width:34px;height:34px;border-radius:6px;background:{bg_g};color:{tc_g};display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;margin-bottom:1px">{hj_wg}</div>
+                <div style="width:34px;height:34px;border-radius:6px;background:{bg_j};color:{tc_j};display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;margin-bottom:1px">{hj_wj}</div>
+                <div style="font-size:9px;color:#5a3e0a;white-space:nowrap">{six_j}</div>
                 </div>''', unsafe_allow_html=True)
                 if st.button(f'{wm}월',key=f'wu_{real_wu}',use_container_width=True):
                     st.session_state.sel_wolun=real_wu
                     st.session_state.page='ilun'
                     st.rerun()
     gpt_url='https://chatgpt.com/g/g-68d90b2d8f448191b87fb7511fa8f80a-rua-myeongrisajusangdamsa'
-    st.markdown(f'<a href="{gpt_url}" target="_blank" class="ai-btn">🧩 AI 명리 무료상담 클릭 👈</a>', unsafe_allow_html=True)
+    st.markdown(f'<a href="{gpt_url}" target="_blank" class="ai-btn">🤖 AI 챗봇 무료 상담</a>', unsafe_allow_html=True)
+
 
 def page_ilun():
     data=st.session_state.saju_data
@@ -745,19 +761,21 @@ def page_ilun():
     hj_wg=hanja_gan(wg); hj_wj=hanja_ji(wj)
     hj_sg=hanja_gan(sg); hj_sj=hanja_ji(sj)
     st.markdown(f'<div class="sel-info">{sy}년 {wm}월 ({hj_wg}{hj_wj}) 일운</div>', unsafe_allow_html=True)
-    # 달력: 양력 1일~말일 기준으로 모든 날짜의 일진 계산 (황경 기반)
+    # 달력: 양력 1일~말일 기준, 황경 기반 일주 계산
     _,days_in_month=cal_mod.monthrange(sy,wm)
     first_weekday,_=cal_mod.monthrange(sy,wm)
     first_wd=(first_weekday+1)%7  # 0=일요일
-    # 각 날짜의 일진을 황경 기반으로 계산
+    # 각 날짜의 일진+육신 계산
     day_items=[]
     for d in range(1, days_in_month+1):
         dt_local=datetime(sy,wm,d,12,0,tzinfo=LOCAL_TZ)
         dt_solar=to_solar_time(dt_local)
         dj,dc,djidx=day_ganji_solar(dt_solar)
         g,j=dj[0],dj[1]
-        day_items.append({'day':d,'gan':g,'ji':j,'six':f'{six_for_stem(ilgan,g)}/{six_for_branch(ilgan,j)}'})
-    # 달력 HTML
+        sg_six=six_for_stem(ilgan,g)
+        sj_six=six_for_branch(ilgan,j)
+        day_items.append({'day':d,'gan':g,'ji':j,'sg_six':sg_six,'sj_six':sj_six})
+    # 달력 HTML (육신 포함)
     html='<div class="cal-wrap">'
     html+=f'<div class="cal-header">{sy}년({hj_sg}{hj_sj}) {wm}월({hj_wg}{hj_wj})</div>'
     html+='<table class="cal-table"><thead><tr>'
@@ -774,13 +792,14 @@ def page_ilun():
         if dow==0: cls+=' sun'
         elif dow==6: cls+=' sat'
         hj_dg=hanja_gan(item["gan"]); hj_dj=hanja_ji(item["ji"])
-        html+=f'<td class="{cls.strip()}"><div class="dn">{d_num}</div><div>{hj_dg}</div><div>{hj_dj}</div></td>'
+        sg6=item["sg_six"]; sj6=item["sj_six"]
+        html+=f'<td class="{cls.strip()}"><div class="dn">{d_num}</div><div style="font-size:9px;color:#888;">{sg6}</div><div style="font-size:14px;font-weight:bold;">{hj_dg}</div><div style="font-size:14px;font-weight:bold;">{hj_dj}</div><div style="font-size:9px;color:#888;">{sj6}</div></td>'
         col_pos+=1
     while col_pos%7!=0 and col_pos>0: html+='<td class="empty"></td>'; col_pos+=1
     html+='</tr></tbody></table></div>'
     st.markdown(html,unsafe_allow_html=True)
     gpt_url='https://chatgpt.com/g/g-68d90b2d8f448191b87fb7511fa8f80a-rua-myeongrisajusangdamsa'
-    st.markdown(f'<a href="{gpt_url}" target="_blank" class="ai-btn">🧩 AI 명리 무료상담 클릭 👈</a>', unsafe_allow_html=True)
+    st.markdown(f'<a href="{gpt_url}" target="_blank" class="ai-btn">🤖 AI 챗봇 무료 상담</a>', unsafe_allow_html=True)
 
 
 if __name__=='__main__': main()
