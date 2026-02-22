@@ -610,6 +610,7 @@ def page_saju():
     t1=data['t1']; t2=data['t2']
     sel_du=st.session_state.sel_daeun
     sel_su=st.session_state.sel_seun
+    birth_year=data['birth'][0]
     if st.button('← 입력으로'): st.session_state.page='input'; st.rerun()
     # 오늘 일진 (황경 기반)
     now_solar=to_solar_time(now)
@@ -646,6 +647,7 @@ def page_saju():
         age=item['start_age']
         g=CHEONGAN[item['g_idx']]; j=MONTH_JI[item['b_idx']]
         with col:
+            dy_year=birth_year+age
             clicked=render_daeun_card(age,g,j,ilgan,real_idx==sel_du,f"du_{real_idx}",dy_year)
             if clicked:
                 st.session_state.sel_daeun=real_idx
@@ -687,7 +689,8 @@ def page_saju():
             <div style="width:30px;height:30px;border-radius:5px;background:{bg_j};color:{tc_j};display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;margin-bottom:1px">{hj_sj}</div>
             <div style="font-size:9px;color:#5a3e0a;white-space:nowrap">{six_j}</div>
             </div>''', unsafe_allow_html=True)
-            if st.button(f"'{str(sy)[2:]}", key=f'su_{real_idx}', use_container_width=True):
+            su_age=sy-birth_year
+            if st.button(f'{su_age}세', key=f'su_{real_idx}', use_container_width=True):
                 st.session_state.sel_seun=real_idx
                 st.session_state.sel_wolun=0
                 st.session_state.page='wolun'
