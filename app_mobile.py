@@ -118,7 +118,7 @@ body,.stApp{background:var(--bg)!important;color:var(--text)!important;font-fami
 .block-container{padding:0.5rem!important;max-width:430px!important;margin:0 auto!important;}
 .stTextInput input,.stNumberInput input{background:#3a4565!important;color:var(--text)!important;border:1px solid var(--bdr)!important;border-radius:8px!important;}
 .stRadio label{color:var(--text)!important;}
-.stButton>button{background:linear-gradient(135deg,#6b7fa3,#3a4565)!important;color:var(--text)!important;border:1px solid var(--acc)!important;border-radius:8px!important;width:100%!important;font-size:18px!important;font-weight:bold!important;padding:12px!important;}
+.stButton>button{background:linear-gradient(135deg,#6b7fa3,#3a4565)!important;color:var(--text)!important;border:1px solid var(--acc)!important;border-radius:6px!important;width:100%!important;font-size:11px!important;font-weight:bold!important;padding:4px 1px!important;white-space:nowrap!important;overflow:hidden;}
 .page-hdr{background:linear-gradient(135deg,#3d4f7a,#2C3650);border-bottom:2px solid var(--acc);padding:10px;text-align:center;font-size:18px;font-weight:bold;color:var(--acc);letter-spacing:4px;margin-bottom:12px;}
 .saju-wrap{background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--r);padding:10px 4px;margin-bottom:10px;}
 .saju-table{width:100%;border-collapse:separate;border-spacing:3px;table-layout:fixed;}
@@ -326,7 +326,7 @@ def page_saju():
 <div style="width:38px;height:38px;border-radius:6px;background:{bg_j};color:{tc_j};display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:900;margin-bottom:2px">{hj_j}</div>
 <div style="font-size:9px;color:#b0a888">{sipsin(ilgan,g)}/{sipsin_ji(ilgan,j)}</div>
 </div>''', unsafe_allow_html=True)
-            if st.button(f'{age}', key=f'du_{real_idx}', help=f'{age}세 대운', use_container_width=True):
+            if st.button(f'{age}', key=f'du_{real_idx}', use_container_width=True):
                 st.session_state.sel_daeun = real_idx
                 # 해당 대운의 첫 년도로 세운 업데이트
                 new_seun_start = y + age - 10
@@ -363,7 +363,7 @@ def page_saju():
 <div style="width:34px;height:34px;border-radius:6px;background:{bg_j};color:{tc_j};display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;margin-bottom:2px">{hj_j}</div>
 <div style="font-size:9px;color:#b0a888">{sipsin(ilgan,sg)}/{sipsin_ji(ilgan,sj)}</div>
 </div>''', unsafe_allow_html=True)
-            if st.button(f'{sy}', key=f'su_{real_idx}', use_container_width=True):
+            if st.button(f"'{str(sy)[2:]}'", key=f'su_{real_idx}', use_container_width=True):
                 st.session_state.sel_seun = real_idx
                 st.session_state.sel_wolun = 0
                 st.session_state.page = 'wolun'
