@@ -647,19 +647,19 @@ def page_saju():
         with col:
             clicked=render_daeun_card(age,g,j,ilgan,real_idx==sel_du,f"du_{real_idx}",dy_year)
             if clicked:
-            st.session_state.sel_daeun=real_idx
-            birth_y=data['birth'][0]
-            du_start_age=item['start_age']
-            # 세운: 항상 출생년도부터 100년치
-            new_seun=[]
-            for i in range(100):
-                sy=birth_y+i; off=(sy-4)%60
-                new_seun.append((sy,CHEONGAN[off%10],JIJI[off%12]))
-            st.session_state.saju_data['seun']=new_seun
-            # 해당 대운 시작 나이에 맞는 세운 인덱스로 이동
-            st.session_state.sel_seun=du_start_age
-            st.session_state.page='saju'
-            st.rerun()
+                st.session_state.sel_daeun=real_idx
+                birth_y=data['birth'][0]
+                du_start_age=item['start_age']
+                # 세운: 항상 출생년도부터 100년치
+                new_seun=[]
+                for i in range(100):
+                    sy=birth_y+i; off=(sy-4)%60
+                    new_seun.append((sy,CHEONGAN[off%10],JIJI[off%12]))
+                st.session_state.saju_data['seun']=new_seun
+                # 해당 대운 시작 나이에 맞는 세운 인덱스로 이동
+                st.session_state.sel_seun=du_start_age
+                st.session_state.page='saju'
+                st.rerun()
     # 세운 - HTML 스크롤 스트립
     sel_su=st.session_state.sel_seun
     seun=data["seun"]
