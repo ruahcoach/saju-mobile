@@ -745,16 +745,19 @@ def page_ilun():
     hj_wg=hanja_gan(wg); hj_wj=hanja_ji(wj)
     hj_sg=hanja_gan(sg); hj_sj=hanja_ji(sj)
     st.markdown(f'<div class="sel-info">{sy}년 {wm}월 ({hj_wg}{hj_wj}) 일운</div>', unsafe_allow_html=True)
-    # 황경 기반 일운 계산
-    t1=wm_data.get('t1'); t_end=wm_data.get('t_end')
-    if t1 is None or t_end is None:
-        _,days=cal_mod.monthrange(sy,wm)
-        t1=datetime(sy,wm,1,0,0,tzinfo=LOCAL_TZ)
-        t_end=datetime(sy,wm,days,23,59,tzinfo=LOCAL_TZ)
-    ilun=calc_ilun_strip(t1,t_end,ilgan)
-    # 달력 HTML
+    # 달력: 양력 1일~말일 기준으로 모든 날짜의 일진 계산 (황경 기반)
+    _,days_in_month=cal_mod.monthrange(sy,wm)
     first_weekday,_=cal_mod.monthrange(sy,wm)
-    first_wd=(first_weekday+1)%7
+    first_wd=(first_weekday+1)%7  # 0=일요일
+    # 각 날짜의 일진을 황경 기반으로 계산
+    day_items=[]
+    for d in range(1, days_in_month+1):
+        dt_local=datetime(sy,wm,d,12,0,tzinfo=LOCAL_TZ)
+        dt_solar=to_solar_time(dt_local)
+        dj,dc,djidx=day_ganji_solar(dt_solar)
+        g,j=dj[0],dj[1]
+        day_items.append({'day':d,'gan':g,'ji':j,'six':f'{six_for_stem(ilgan,g)}/{six_for_branch(ilgan,j)}'})
+    # 달력 HTML
     html='<div class="cal-wrap">'
     html+=f'<div class="cal-header">{sy}년({hj_sg}{hj_sj}) {wm}월({hj_wg}{hj_wj})</div>'
     html+='<table class="cal-table"><thead><tr>'
@@ -762,9 +765,9 @@ def page_ilun():
     html+='</tr></thead><tbody><tr>'
     for _ in range(first_wd): html+='<td class="empty"></td>'
     col_pos=first_wd
-    for item in ilun:
+    for item in day_items:
         if col_pos==7: html+='</tr><tr>'; col_pos=0
-        d_num=item["date"].day
+        d_num=item["day"]
         dow=(first_wd+d_num-1)%7
         is_today=(sy==now.year and wm==now.month and d_num==now.day)
         cls='today-cell' if is_today else ''
@@ -778,5 +781,6 @@ def page_ilun():
     st.markdown(html,unsafe_allow_html=True)
     gpt_url='https://chatgpt.com/g/g-68d90b2d8f448191b87fb7511fa8f80a-rua-myeongrisajusangdamsa'
     st.markdown(f'<a href="{gpt_url}" target="_blank" class="ai-btn">🧩 AI 명리 무료상담 클릭 👈</a>', unsafe_allow_html=True)
+
 
 if __name__=='__main__': main()
