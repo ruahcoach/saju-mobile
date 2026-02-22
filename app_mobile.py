@@ -425,7 +425,7 @@ body,.stApp{background:var(--bg)!important;color:var(--text)!important;font-fami
 .stRadio label{color:var(--text)!important;}
 .stButton>button{background:linear-gradient(135deg,#c8b87a,#a0945e)!important;color:#fff!important;border:1px solid var(--acc)!important;border-radius:4px!important;width:100%!important;font-size:10px!important;font-weight:bold!important;padding:1px 0px!important;white-space:nowrap!important;overflow:hidden;min-height:0!important;height:20px!important;line-height:1!important;}
 .page-hdr{background:linear-gradient(135deg,#c8b87a,#a0945e);border-bottom:2px solid var(--acc);padding:10px;text-align:center;font-size:18px;font-weight:bold;color:#fff;letter-spacing:4px;margin-bottom:12px;}
-.saju-wrap{background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--r);padding:6px 4px 4px;margin-bottom:4px;}
+.saju-wrap{background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--r);padding:6px 4px;margin-bottom:4px;}
 .saju-table{width:100%;border-collapse:separate;border-spacing:3px;table-layout:fixed;}
 .saju-table th{font-size:11px;color:var(--sub);text-align:center;padding:4px 0;}
 .saju-table .lb td{font-size:10px;color:var(--sub);text-align:center;padding:2px 0;}
@@ -505,8 +505,8 @@ def render_daeun_card(age, g, j, ilgan, active, btn_key, dy_year=0):
     st.markdown(f'''<div style="text-align:center;font-size:10px;color:#6b5a3e;margin-bottom:1px">{age}세</div>
     <div style="display:flex;flex-direction:column;align-items:center;border:{bdr};border-radius:10px;background:{bg_card};padding:3px 2px;">
     <div style="font-size:9px;color:#5a3e0a;margin-bottom:1px;white-space:nowrap">{six_g}</div>
-    <div style="width:36px;height:36px;border-radius:6px;background:{bg_g};color:{tc_g};display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:900;margin-bottom:1px">{hj_g}</div>
-    <div style="width:36px;height:36px;border-radius:6px;background:{bg_j};color:{tc_j};display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:900;margin-bottom:1px">{hj_j}</div>
+    <div style="width:30px;height:30px;border-radius:5px;background:{bg_g};color:{tc_g};display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;margin-bottom:1px">{hj_g}</div>
+    <div style="width:30px;height:30px;border-radius:5px;background:{bg_j};color:{tc_j};display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;margin-bottom:1px">{hj_j}</div>
     <div style="font-size:9px;color:#5a3e0a;white-space:nowrap">{six_j}</div>
     </div>''', unsafe_allow_html=True)
     return st.button(f'{dy_year}', key=btn_key, use_container_width=True)
@@ -660,30 +660,26 @@ def page_saju():
                 st.session_state.sel_seun=du_start_age
                 st.session_state.page='saju'
                 st.rerun()
-    # 세운 - HTML 스크롤 스트립
+    # 세운 - HTML 스크롤 스트립 (오른쪽=0세, 왼쪽=높은나이)
     sel_su=st.session_state.sel_seun
     seun=data["seun"]
     du_item=daeun[sel_du]
     du_start=du_item['start_age']
     birth_y=data['birth'][0]
-    # 해당 대운 구간의 세운만 표시 (0세~대운종료+)
-    # 첫 대운: 0~du_start+9세
-    # 나머지: du_start~du_start+9세
     if sel_du==0:
         seun_age_start=0
     else:
         seun_age_start=du_start
     seun_age_end=du_start+9
-    # seun 리스트에서 해당 나이 범위 추출 (인덱스 = 나이)
     seun_range=[]
     for age_i in range(seun_age_start, seun_age_end+1):
         if age_i < len(seun):
             sy,sg,sj=seun[age_i]
             seun_range.append((age_i,sy,sg,sj))
-    # HTML 스트립으로 렌더링 (왼쪽=어린 나이, 오른쪽=많은 나이)
+    seun_range_disp=list(reversed(seun_range))
     seun_html='<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;padding:4px 0 2px;">'
     seun_html+='<div style="display:inline-flex;flex-wrap:nowrap;gap:3px;padding:0 4px;">'
-    for age_i,sy,sg,sj in seun_range:
+    for age_i,sy,sg,sj in seun_range_disp:
         bg_g=GAN_BG.get(sg,"#888"); tc_g=gan_fg(sg)
         bg_j=BR_BG.get(sj,"#888"); tc_j=br_fg(sj)
         hj_sg=hanja_gan(sg); hj_sj=hanja_ji(sj)
@@ -693,8 +689,7 @@ def page_saju():
         bdr='2px solid #8b6914' if active else '1px solid #c8b87a'
         bg_card='#d4c48a' if active else '#e8e4d8'
         seun_html+=f'''<div style="display:flex;flex-direction:column;align-items:center;min-width:44px;border:{bdr};border-radius:8px;background:{bg_card};padding:3px 2px 2px;">
-<div style="font-size:9px;color:#6b5a3e;margin-bottom:1px;white-space:nowrap">{age_i}세</div>
-<div style="font-size:8px;color:#5a3e0a;margin-bottom:1px;white-space:nowrap">{sy}</div>
+<div style="font-size:8px;color:#6b5a3e;margin-bottom:1px;white-space:nowrap">{sy}</div>
 <div style="font-size:8px;color:#5a3e0a;margin-bottom:1px;white-space:nowrap">{six_g}</div>
 <div style="width:28px;height:28px;border-radius:5px;background:{bg_g};color:{tc_g};display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:900;">{hj_sg}</div>
 <div style="width:28px;height:28px;border-radius:5px;background:{bg_j};color:{tc_j};display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:900;margin-top:1px;">{hj_sj}</div>
@@ -702,11 +697,10 @@ def page_saju():
 </div>'''
     seun_html+='</div></div>'
     st.markdown(seun_html, unsafe_allow_html=True)
-    # 세운 선택 버튼 (나이로 표시)
-    n_btn=len(seun_range)
+    n_btn=len(seun_range_disp)
     if n_btn>0:
         cols_su=st.columns(n_btn)
-        for ci,(age_i,sy,sg,sj) in enumerate(seun_range):
+        for ci,(age_i,sy,sg,sj) in enumerate(seun_range_disp):
             with cols_su[ci]:
                 if st.button(f'{age_i}세', key=f'su_{age_i}', use_container_width=True):
                     st.session_state.sel_seun=age_i
