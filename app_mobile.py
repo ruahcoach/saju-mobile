@@ -610,6 +610,7 @@ def page_saju():
     t1=data['t1']; t2=data['t2']
     sel_du=st.session_state.sel_daeun
     sel_su=st.session_state.sel_seun
+    birth_year=data['birth'][0]
     if st.button('← 입력으로'): st.session_state.page='input'; st.rerun()
     # 오늘 일진 (황경 기반)
     now_solar=to_solar_time(now)
@@ -644,6 +645,7 @@ def page_saju():
         item=daeun_rev[ci]
         age=item['start_age']
         g=CHEONGAN[item['g_idx']]; j=MONTH_JI[item['b_idx']]
+        dy_year=birth_year+age
         with col:
             clicked=render_daeun_card(age,g,j,ilgan,real_idx==sel_du,f"du_{real_idx}",dy_year)
             if clicked:
