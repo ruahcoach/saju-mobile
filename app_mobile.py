@@ -242,7 +242,7 @@ def dayun_start_age(dt_solar, jie12_solar, forward):
     delta_days=(next_t-dt_solar).total_seconds()/86400.0 if forward else (dt_solar-prev_t).total_seconds()/86400.0
     return max(0,round_half_up(delta_days/3.0))
 
-def build_dayun_list(month_gidx, month_bidx, forward, start_age, count=13):
+def build_dayun_list(month_gidx, month_bidx, forward, start_age, count=8):
     dirv=1 if forward else -1
     out=[]
     for i in range(1,count+1):
@@ -424,6 +424,8 @@ body,.stApp{background:var(--bg)!important;color:var(--text)!important;font-fami
 .stTextInput input,.stNumberInput input{background:#fff!important;color:var(--text)!important;border:1px solid var(--bdr)!important;border-radius:8px!important;}
 .stRadio label{color:var(--text)!important;}
 .stButton>button{background:linear-gradient(135deg,#c8b87a,#a0945e)!important;color:#fff!important;border:1px solid var(--acc)!important;border-radius:4px!important;width:100%!important;font-size:10px!important;font-weight:bold!important;padding:1px 0px!important;white-space:nowrap!important;overflow:hidden;min-height:0!important;height:20px!important;line-height:1!important;}
+.nav-bar{display:flex;gap:6px;margin-top:10px;align-items:center;}
+.nav-btn{display:flex;align-items:center;justify-content:center;background:#f0ece4;border:1px solid #c8b87a;border-radius:8px;padding:7px 10px;color:#5a3e0a;font-size:12px;font-weight:bold;text-decoration:none;cursor:pointer;white-space:nowrap;}
 .page-hdr{background:linear-gradient(135deg,#c8b87a,#a0945e);border-bottom:2px solid var(--acc);padding:10px;text-align:center;font-size:18px;font-weight:bold;color:#fff;letter-spacing:4px;margin-bottom:12px;}
 .saju-wrap{background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--r);padding:10px 4px;margin-bottom:10px;}
 .saju-table{width:100%;border-collapse:separate;border-spacing:3px;table-layout:fixed;}
@@ -454,7 +456,7 @@ body,.stApp{background:var(--bg)!important;color:var(--text)!important;font-fami
 .cal-table td.today-cell{background:#ffe8a0;border:1px solid var(--acc);}
 .cal-table td.sun .dn{color:#E53935;}
 .cal-table td.sat .dn{color:#1565C0;}
-.ai-btn{display:block;background:linear-gradient(135deg,#7b4fa0,#4a2a70);border:1px solid #a070c0;border-radius:12px;padding:12px;text-align:center;color:#e8d0ff;font-size:14px;font-weight:bold;text-decoration:none;margin:12px 0;}
+.ai-btn{display:flex;align-items:center;justify-content:center;background:#fff;border:2px solid #6b3fa0;border-radius:10px;padding:8px 10px;text-align:center;color:#4a1a80;font-size:13px;font-weight:bold;text-decoration:none;flex:1;}
 label{color:var(--text)!important;font-size:13px!important;}
 div[data-testid='stHorizontalBlock']{gap:4px!important;}
 div[data-testid='column']{padding:0 2px!important;}
@@ -608,10 +610,10 @@ def page_saju():
     daeun=data['daeun']; seun=data['seun']
     geok=data['geok']; why=data['why']
     t1=data['t1']; t2=data['t2']
+    birth_year=data['birth'][0]
     sel_du=st.session_state.sel_daeun
     sel_su=st.session_state.sel_seun
-    if st.button('← 입력으로'): st.session_state.page='input'; st.rerun()
-    # 오늘 일진 (황경 기반)
+    # 오늘 일진
     now_solar=to_solar_time(now)
     today_fp=four_pillars_from_solar(now_solar)
     yg,yj=today_fp['year'][0],today_fp['year'][1]
@@ -621,13 +623,12 @@ def page_saju():
     hj_mg=hanja_gan(mg); hj_mj=hanja_ji(mj)
     hj_dg=hanja_gan(dg); hj_dj=hanja_ji(dj)
     st.markdown(f'<div class="today-banner">오늘 {now.strftime("%Y.%m.%d")} · {hj_yg}{hj_yj}년 {hj_mg}{hj_mj}월 {hj_dg}{hj_dj}일</div>', unsafe_allow_html=True)
-    # 사주 원국
-    st.markdown('<div class="sec-title">🏛 사주 원국</div>', unsafe_allow_html=True)
+    # 사주 원국 (제목 없음)
     st.markdown(render_saju_table(fp,ilgan), unsafe_allow_html=True)
-    # 格 박스 - 절입명칭 정확히 표시
+    # 格 박스
     month_ji=fp['month'][1]
     pair=MONTH_TO_2TERMS[month_ji]
-    term1_name=pair[0]  # 입절 이름 (입춘/경칩/청명/... 등)
+    term1_name=pair[0]
     du_dir='순행' if data['forward'] else '역행'
     du_age=data['start_age']
     day_from=data['day_from_jieqi']
@@ -636,8 +637,7 @@ def page_saju():
     <div class="geok-why">{why}</div>
     <div class="geok-why" style="margin-top:4px;">{month_ji}월 司令 ({term1_name} 절입 +{day_from}일) · 대운 {du_age}세 {du_dir}</div>
     </div>''', unsafe_allow_html=True)
-    # 대운 (오른쪽->왼쪽, 스크롤, 클릭시 월운으로 이동)
-    st.markdown('<div class="sec-title">🎴 대운 (클릭 → 월운)</div>', unsafe_allow_html=True)
+    # 대운 (제목 없음, 오른->왼, 클릭시 월운이동, 버튼=연도)
     daeun_rev=list(reversed(daeun))
     cols_du=st.columns(len(daeun))
     for ci,col in enumerate(cols_du):
@@ -645,11 +645,12 @@ def page_saju():
         item=daeun_rev[ci]
         age=item['start_age']
         g=CHEONGAN[item['g_idx']]; j=MONTH_JI[item['b_idx']]
+        dy_year=birth_year+age  # 대운 시작 연도
         with col:
             clicked=render_daeun_card(age,g,j,ilgan,real_idx==sel_du,f"du_{real_idx}")
             if clicked:
                 st.session_state.sel_daeun=real_idx
-                new_ss=max(data['birth'][0]+age-5,data['birth'][0])
+                new_ss=max(birth_year+age-5,birth_year)
                 new_seun=[]
                 for i in range(20):
                     sy=new_ss+i; off=(sy-4)%60
@@ -658,19 +659,25 @@ def page_saju():
                 st.session_state.sel_seun=0
                 st.session_state.page='wolun'
                 st.rerun()
-    # 세운 (오른쪽->왼쪽)
+    # 대운 아래: 해당 연도 표시 (숫자 라벨만, 버튼 아님)
+    cols_yr=st.columns(len(daeun))
+    daeun_rev2=list(reversed(daeun))
+    for ci,col in enumerate(cols_yr):
+        item=daeun_rev2[ci]
+        age=item['start_age']
+        dy_year=birth_year+age
+        with col:
+            st.markdown(f'<div style="text-align:center;font-size:9px;color:#8b6914;padding:0;margin:0;">{dy_year}</div>', unsafe_allow_html=True)
+    # 세운 (제목 없음, 오른->왼, 버튼=나이)
     sel_su=st.session_state.sel_seun
     seun=data["seun"]
-    du_item=daeun[sel_du]
-    du_g=CHEONGAN[du_item["g_idx"]]; du_j=MONTH_JI[du_item["b_idx"]]
-    st.markdown(f'<div class="sec-title">📅 세운(歲運) — 클릭 → 월운</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="sel-info">선택 대운: {du_item["start_age"]}세 {hanja_gan(du_g)}{hanja_ji(du_j)} ({six_for_stem(ilgan,du_g)}/{six_for_branch(ilgan,du_j)})</div>', unsafe_allow_html=True)
     n_show=min(len(seun),10)
     seun_show=list(reversed(seun[:n_show]))
     cols_su=st.columns(n_show)
     for ci,col in enumerate(cols_su):
         real_idx=n_show-1-ci
         sy,sg,sj=seun_show[ci]
+        su_age=sy-birth_year  # 세운 나이
         with col:
             active=(real_idx==sel_su)
             bg_g=GAN_BG.get(sg,"#888"); tc_g=gan_fg(sg)
@@ -687,13 +694,19 @@ def page_saju():
             <div style="width:30px;height:30px;border-radius:5px;background:{bg_j};color:{tc_j};display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;margin-bottom:1px">{hj_sj}</div>
             <div style="font-size:9px;color:#5a3e0a;white-space:nowrap">{six_j}</div>
             </div>''', unsafe_allow_html=True)
-            if st.button(f"'{str(sy)[2:]}", key=f'su_{real_idx}', use_container_width=True):
+            if st.button(f'{su_age}세', key=f'su_{real_idx}', use_container_width=True):
                 st.session_state.sel_seun=real_idx
                 st.session_state.sel_wolun=0
                 st.session_state.page='wolun'
                 st.rerun()
+    # 하단 내비 + AI 버튼 나란히
     gpt_url='https://chatgpt.com/g/g-68d90b2d8f448191b87fb7511fa8f80a-rua-myeongrisajusangdamsa'
-    st.markdown(f'<a href="{gpt_url}" target="_blank" class="ai-btn">🤖 AI 챗봇 무료 상담</a>', unsafe_allow_html=True)
+    st.markdown(f'''<div class="nav-bar">
+    <a class="nav-btn" onclick="window.location.reload()">⬅ 입력</a>
+    <a href="{gpt_url}" target="_blank" class="ai-btn">🤖 AI 챗봇 무료 상담</a>
+    </div>''', unsafe_allow_html=True)
+    if st.button('← 입력으로', key='back_input_saju'):
+        st.session_state.page='input'; st.rerun()
 
 
 def page_wolun():
@@ -704,10 +717,9 @@ def page_wolun():
     seun=data["seun"]
     sel_su=st.session_state.sel_seun
     sy,sg,sj=seun[sel_su]
-    if st.button('← 사주로'): st.session_state.page='saju'; st.rerun()
     hj_sg=hanja_gan(sg); hj_sj=hanja_ji(sj)
-    st.markdown(f'<div class="sel-info">{sy}년 {hj_sg}{hj_sj} 월운 ({six_for_stem(ilgan,sg)}/{six_for_branch(ilgan,sj)})</div>', unsafe_allow_html=True)
-    # 황경 기반 월운 계산
+    st.markdown(f'<div class="today-banner">{sy}년 {hj_sg}{hj_sj} 월운 ({six_for_stem(ilgan,sg)}/{six_for_branch(ilgan,sj)})</div>', unsafe_allow_html=True)
+    # 황경 기반 월운 계산 (제목 없음)
     wolun=calc_wolun_accurate(sy)
     sel_wu=st.session_state.sel_wolun
     wolun_rev=list(reversed(wolun))
@@ -741,8 +753,13 @@ def page_wolun():
                     st.session_state.sel_wolun=real_wu
                     st.session_state.page='ilun'
                     st.rerun()
+    # 하단 내비 + AI
     gpt_url='https://chatgpt.com/g/g-68d90b2d8f448191b87fb7511fa8f80a-rua-myeongrisajusangdamsa'
-    st.markdown(f'<a href="{gpt_url}" target="_blank" class="ai-btn">🤖 AI 챗봇 무료 상담</a>', unsafe_allow_html=True)
+    st.markdown(f'''<div class="nav-bar">
+    <a href="{gpt_url}" target="_blank" class="ai-btn">🤖 AI 챗봇 무료 상담</a>
+    </div>''', unsafe_allow_html=True)
+    if st.button('← 사주로', key='back_saju_wolun'):
+        st.session_state.page='saju'; st.rerun()
 
 
 def page_ilun():
@@ -757,15 +774,13 @@ def page_ilun():
     wolun=calc_wolun_accurate(sy)
     wm_data=wolun[sel_wu]
     wm=wm_data["month"]; wg=wm_data["gan"]; wj=wm_data["ji"]
-    if st.button('← 월운으로'): st.session_state.page='wolun'; st.rerun()
     hj_wg=hanja_gan(wg); hj_wj=hanja_ji(wj)
     hj_sg=hanja_gan(sg); hj_sj=hanja_ji(sj)
-    st.markdown(f'<div class="sel-info">{sy}년 {wm}월 ({hj_wg}{hj_wj}) 일운</div>', unsafe_allow_html=True)
-    # 달력: 양력 1일~말일 기준, 황경 기반 일주 계산
+    st.markdown(f'<div class="today-banner">{sy}년 {wm}월 ({hj_wg}{hj_wj}) 일운</div>', unsafe_allow_html=True)
+    # 달력: 양력 1일~말일 기준, 황경 기반
     _,days_in_month=cal_mod.monthrange(sy,wm)
     first_weekday,_=cal_mod.monthrange(sy,wm)
-    first_wd=(first_weekday+1)%7  # 0=일요일
-    # 각 날짜의 일진+육신 계산
+    first_wd=(first_weekday+1)%7
     day_items=[]
     for d in range(1, days_in_month+1):
         dt_local=datetime(sy,wm,d,12,0,tzinfo=LOCAL_TZ)
@@ -775,7 +790,6 @@ def page_ilun():
         sg_six=six_for_stem(ilgan,g)
         sj_six=six_for_branch(ilgan,j)
         day_items.append({'day':d,'gan':g,'ji':j,'sg_six':sg_six,'sj_six':sj_six})
-    # 달력 HTML (육신 포함)
     html='<div class="cal-wrap">'
     html+=f'<div class="cal-header">{sy}년({hj_sg}{hj_sj}) {wm}월({hj_wg}{hj_wj})</div>'
     html+='<table class="cal-table"><thead><tr>'
@@ -798,8 +812,13 @@ def page_ilun():
     while col_pos%7!=0 and col_pos>0: html+='<td class="empty"></td>'; col_pos+=1
     html+='</tr></tbody></table></div>'
     st.markdown(html,unsafe_allow_html=True)
+    # 하단 내비 + AI
     gpt_url='https://chatgpt.com/g/g-68d90b2d8f448191b87fb7511fa8f80a-rua-myeongrisajusangdamsa'
-    st.markdown(f'<a href="{gpt_url}" target="_blank" class="ai-btn">🤖 AI 챗봇 무료 상담</a>', unsafe_allow_html=True)
+    st.markdown(f'''<div class="nav-bar">
+    <a href="{gpt_url}" target="_blank" class="ai-btn">🤖 AI 챗봇 무료 상담</a>
+    </div>''', unsafe_allow_html=True)
+    if st.button('← 월운으로', key='back_wolun_ilun'):
+        st.session_state.page='wolun'; st.rerun()
 
 
 if __name__=='__main__': main()
