@@ -425,12 +425,12 @@ body,.stApp{background:var(--bg)!important;color:var(--text)!important;font-fami
 .stRadio label{color:var(--text)!important;}
 .stButton>button{background:linear-gradient(135deg,#c8b87a,#a0945e)!important;color:#fff!important;border:1px solid var(--acc)!important;border-radius:4px!important;width:100%!important;font-size:10px!important;font-weight:bold!important;padding:1px 0px!important;white-space:nowrap!important;overflow:hidden;min-height:0!important;height:20px!important;line-height:1!important;}
 .page-hdr{background:linear-gradient(135deg,#c8b87a,#a0945e);border-bottom:2px solid var(--acc);padding:10px;text-align:center;font-size:18px;font-weight:bold;color:#fff;letter-spacing:4px;margin-bottom:12px;}
-.saju-wrap{background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--r);padding:10px 4px;margin-bottom:10px;}
+.saju-wrap{background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--r);padding:6px 4px 4px;margin-bottom:4px;}
 .saju-table{width:100%;border-collapse:separate;border-spacing:3px;table-layout:fixed;}
 .saju-table th{font-size:11px;color:var(--sub);text-align:center;padding:4px 0;}
 .saju-table .lb td{font-size:10px;color:var(--sub);text-align:center;padding:2px 0;}
 .gcell,.jcell{text-align:center;padding:0;}
-.gcell div,.jcell div{display:flex;align-items:center;justify-content:center;width:100%;height:52px;border-radius:8px;font-weight:900;font-size:26px;border:1px solid rgba(0,0,0,.15);margin:2px auto;}
+.gcell div,.jcell div{display:flex;align-items:center;justify-content:center;width:100%;height:44px;border-radius:8px;font-weight:900;font-size:24px;border:1px solid rgba(0,0,0,.15);margin:1px auto;}
 .strip-outer{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:thin;padding:2px 0;}
 .strip-inner{display:inline-flex;flex-wrap:nowrap;gap:4px;padding:2px 4px;}
 .un-card{display:flex;flex-direction:column;align-items:center;min-width:52px;padding:4px 2px 6px;border:1px solid var(--bdr);border-radius:10px;background:var(--card);cursor:pointer;}
@@ -555,10 +555,10 @@ def page_input():
             forward=(is_yang_stem(year_gan)==(gender=='남'))
             start_age=dayun_start_age(dt_solar,jie12_solar,forward)
             daeun=build_dayun_list(fp['m_gidx'],fp['m_bidx'],forward,start_age)
-            # 세운
-            seun_start=max(base_date.year,now.year-5)
+            # 세운 (출생년도부터 100년치 생성)
+            seun_start=base_date.year
             seun=[]
-            for i in range(20):
+            for i in range(100):
                 sy=seun_start+i; off=(sy-4)%60
                 seun.append((sy,CHEONGAN[off%10],JIJI[off%12]))
             # 격 계산 (황경 기반)
@@ -583,9 +583,8 @@ def page_input():
             sel_du=0
             for idx,item in enumerate(daeun):
                 if item['start_age']<=age_now: sel_du=idx
-            sel_su=0
-            for idx,(sy,sg,sj) in enumerate(seun):
-                if sy==now.year: sel_su=idx; break
+            # 현재 나이에 해당하는 세운 인덱스 (인덱스=나이)
+            sel_su=min(age_now, 99)
             st.session_state.saju_data={
                 'birth':(base_date.year,base_date.month,base_date.day,hh,mm_t),
                 'dt_solar':dt_solar,'gender':gender,'fp':fp,'daeun':daeun,
@@ -648,48 +647,72 @@ def page_saju():
         with col:
             clicked=render_daeun_card(age,g,j,ilgan,real_idx==sel_du,f"du_{real_idx}",dy_year)
             if clicked:
-                st.session_state.sel_daeun=real_idx
-                new_ss=max(data['birth'][0]+age-5,data['birth'][0])
-                new_seun=[]
-                for i in range(20):
-                    sy=new_ss+i; off=(sy-4)%60
-                    new_seun.append((sy,CHEONGAN[off%10],JIJI[off%12]))
-                st.session_state.saju_data['seun']=new_seun
-                st.session_state.sel_seun=0
-                st.session_state.page='saju'
-                st.rerun()
-    # 세운 (오른쪽->왼쪽)
+            st.session_state.sel_daeun=real_idx
+            birth_y=data['birth'][0]
+            du_start_age=item['start_age']
+            # 세운: 항상 출생년도부터 100년치
+            new_seun=[]
+            for i in range(100):
+                sy=birth_y+i; off=(sy-4)%60
+                new_seun.append((sy,CHEONGAN[off%10],JIJI[off%12]))
+            st.session_state.saju_data['seun']=new_seun
+            # 해당 대운 시작 나이에 맞는 세운 인덱스로 이동
+            st.session_state.sel_seun=du_start_age
+            st.session_state.page='saju'
+            st.rerun()
+    # 세운 - HTML 스크롤 스트립
     sel_su=st.session_state.sel_seun
     seun=data["seun"]
     du_item=daeun[sel_du]
-    du_g=CHEONGAN[du_item["g_idx"]]; du_j=MONTH_JI[du_item["b_idx"]]
-    n_show=min(len(seun),10)
-    seun_show=list(reversed(seun[:n_show]))
-    cols_su=st.columns(n_show)
-    for ci,col in enumerate(cols_su):
-        real_idx=n_show-1-ci
-        sy,sg,sj=seun_show[ci]
-        with col:
-            active=(real_idx==sel_su)
-            bg_g=GAN_BG.get(sg,"#888"); tc_g=gan_fg(sg)
-            bg_j=BR_BG.get(sj,"#888"); tc_j=br_fg(sj)
-            hj_sg=hanja_gan(sg); hj_sj=hanja_ji(sj)
-            bdr='2px solid #8b6914' if active else '1px solid #c8b87a'
-            bg_card='#d4c48a' if active else '#e8e4d8'
-            six_g=six_for_stem(ilgan,sg)
-            six_j=six_for_branch(ilgan,sj)
-            st.markdown(f'''<div style="text-align:center;font-size:10px;color:#6b5a3e;margin-bottom:1px">{sy}</div>
-            <div style="display:flex;flex-direction:column;align-items:center;border:{bdr};border-radius:10px;background:{bg_card};padding:2px 2px;">
-            <div style="font-size:9px;color:#5a3e0a;margin-bottom:1px;white-space:nowrap">{six_g}</div>
-            <div style="width:30px;height:30px;border-radius:5px;background:{bg_g};color:{tc_g};display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;margin-bottom:1px">{hj_sg}</div>
-            <div style="width:30px;height:30px;border-radius:5px;background:{bg_j};color:{tc_j};display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;margin-bottom:1px">{hj_sj}</div>
-            <div style="font-size:9px;color:#5a3e0a;white-space:nowrap">{six_j}</div>
-            </div>''', unsafe_allow_html=True)
-            if st.button(f"'{str(sy)[2:]}", key=f'su_{real_idx}', use_container_width=True):
-                st.session_state.sel_seun=real_idx
-                st.session_state.sel_wolun=0
-                st.session_state.page='wolun'
-                st.rerun()
+    du_start=du_item['start_age']
+    birth_y=data['birth'][0]
+    # 해당 대운 구간의 세운만 표시 (0세~대운종료+)
+    # 첫 대운: 0~du_start+9세
+    # 나머지: du_start~du_start+9세
+    if sel_du==0:
+        seun_age_start=0
+    else:
+        seun_age_start=du_start
+    seun_age_end=du_start+9
+    # seun 리스트에서 해당 나이 범위 추출 (인덱스 = 나이)
+    seun_range=[]
+    for age_i in range(seun_age_start, seun_age_end+1):
+        if age_i < len(seun):
+            sy,sg,sj=seun[age_i]
+            seun_range.append((age_i,sy,sg,sj))
+    # HTML 스트립으로 렌더링 (왼쪽=어린 나이, 오른쪽=많은 나이)
+    seun_html='<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;padding:4px 0 2px;">'
+    seun_html+='<div style="display:inline-flex;flex-wrap:nowrap;gap:3px;padding:0 4px;">'
+    for age_i,sy,sg,sj in seun_range:
+        bg_g=GAN_BG.get(sg,"#888"); tc_g=gan_fg(sg)
+        bg_j=BR_BG.get(sj,"#888"); tc_j=br_fg(sj)
+        hj_sg=hanja_gan(sg); hj_sj=hanja_ji(sj)
+        six_g=six_for_stem(ilgan,sg)
+        six_j=six_for_branch(ilgan,sj)
+        active=(age_i==sel_su)
+        bdr='2px solid #8b6914' if active else '1px solid #c8b87a'
+        bg_card='#d4c48a' if active else '#e8e4d8'
+        seun_html+=f'''<div style="display:flex;flex-direction:column;align-items:center;min-width:44px;border:{bdr};border-radius:8px;background:{bg_card};padding:3px 2px 2px;">
+<div style="font-size:9px;color:#6b5a3e;margin-bottom:1px;white-space:nowrap">{age_i}세</div>
+<div style="font-size:8px;color:#5a3e0a;margin-bottom:1px;white-space:nowrap">{sy}</div>
+<div style="font-size:8px;color:#5a3e0a;margin-bottom:1px;white-space:nowrap">{six_g}</div>
+<div style="width:28px;height:28px;border-radius:5px;background:{bg_g};color:{tc_g};display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:900;">{hj_sg}</div>
+<div style="width:28px;height:28px;border-radius:5px;background:{bg_j};color:{tc_j};display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:900;margin-top:1px;">{hj_sj}</div>
+<div style="font-size:8px;color:#5a3e0a;margin-top:1px;white-space:nowrap">{six_j}</div>
+</div>'''
+    seun_html+='</div></div>'
+    st.markdown(seun_html, unsafe_allow_html=True)
+    # 세운 선택 버튼 (나이로 표시)
+    n_btn=len(seun_range)
+    if n_btn>0:
+        cols_su=st.columns(n_btn)
+        for ci,(age_i,sy,sg,sj) in enumerate(seun_range):
+            with cols_su[ci]:
+                if st.button(f'{age_i}세', key=f'su_{age_i}', use_container_width=True):
+                    st.session_state.sel_seun=age_i
+                    st.session_state.sel_wolun=0
+                    st.session_state.page='wolun'
+                    st.rerun()
     gpt_url='https://chatgpt.com/g/g-68d90b2d8f448191b87fb7511fa8f80a-rua-myeongrisajusangdamsa'
     st.markdown(f'<a href="{gpt_url}" target="_blank" class="ai-btn">🤖 AI 챗봇 무료 상담</a>', unsafe_allow_html=True)
 
@@ -710,7 +733,7 @@ def page_wolun():
     sel_wu=st.session_state.sel_wolun
     wolun_rev=list(reversed(wolun))
     MONTH_KR=['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월']
-    for row_start in range(0,12,6):
+    for row_start in [6,0]:
         row_items=wolun_rev[row_start:row_start+6]
         cols=st.columns(len(row_items))
         for ci,col in enumerate(cols):
