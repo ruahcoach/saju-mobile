@@ -678,7 +678,7 @@ def page_saju():
             seun_range.append((age_i,sy,sg,sj))
     seun_range_disp=list(reversed(seun_range))
     seun_html='<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;padding:4px 0 2px;">'
-    seun_html+='<div style="display:inline-flex;flex-wrap:nowrap;gap:3px;padding:0 4px;">'
+    seun_html+='<div style="display:inline-flex;flex-wrap:nowrap;gap:2px;padding:0 2px;">'
     for age_i,sy,sg,sj in seun_range_disp:
         bg_g=GAN_BG.get(sg,"#888"); tc_g=gan_fg(sg)
         bg_j=BR_BG.get(sj,"#888"); tc_j=br_fg(sj)
@@ -688,12 +688,12 @@ def page_saju():
         active=(age_i==sel_su)
         bdr='2px solid #8b6914' if active else '1px solid #c8b87a'
         bg_card='#d4c48a' if active else '#e8e4d8'
-        seun_html+=f'''<div style="display:flex;flex-direction:column;align-items:center;min-width:44px;border:{bdr};border-radius:8px;background:{bg_card};padding:3px 2px 2px;">
-<div style="font-size:8px;color:#6b5a3e;margin-bottom:1px;white-space:nowrap">{sy}</div>
-<div style="font-size:8px;color:#5a3e0a;margin-bottom:1px;white-space:nowrap">{six_g}</div>
-<div style="width:28px;height:28px;border-radius:5px;background:{bg_g};color:{tc_g};display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:900;">{hj_sg}</div>
-<div style="width:28px;height:28px;border-radius:5px;background:{bg_j};color:{tc_j};display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:900;margin-top:1px;">{hj_sj}</div>
-<div style="font-size:8px;color:#5a3e0a;margin-top:1px;white-space:nowrap">{six_j}</div>
+        seun_html+=f'''<div style="display:flex;flex-direction:column;align-items:center;min-width:34px;border:{bdr};border-radius:8px;background:{bg_card};padding:2px 1px 2px;">
+<div style="font-size:7px;color:#6b5a3e;margin-bottom:1px;white-space:nowrap">{sy}</div>
+<div style="font-size:7px;color:#5a3e0a;margin-bottom:1px;white-space:nowrap">{six_g}</div>
+<div style="width:22px;height:22px;border-radius:4px;background:{bg_g};color:{tc_g};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;">{hj_sg}</div>
+<div style="width:22px;height:22px;border-radius:4px;background:{bg_j};color:{tc_j};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;margin-top:1px;">{hj_sj}</div>
+<div style="font-size:7px;color:#5a3e0a;margin-top:1px;white-space:nowrap">{six_j}</div>
 </div>'''
     seun_html+='</div></div>'
     st.markdown(seun_html, unsafe_allow_html=True)
