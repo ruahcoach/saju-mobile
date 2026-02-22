@@ -242,7 +242,7 @@ def dayun_start_age(dt_solar, jie12_solar, forward):
     delta_days=(next_t-dt_solar).total_seconds()/86400.0 if forward else (dt_solar-prev_t).total_seconds()/86400.0
     return max(0,round_half_up(delta_days/3.0))
 
-def build_dayun_list(month_gidx, month_bidx, forward, start_age, count=8):
+def build_dayun_list(month_gidx, month_bidx, forward, start_age, count=10):
     dirv=1 if forward else -1
     out=[]
     for i in range(1,count+1):
@@ -623,7 +623,6 @@ def page_saju():
     hj_dg=hanja_gan(dg); hj_dj=hanja_ji(dj)
     st.markdown(f'<div class="today-banner">오늘 {now.strftime("%Y.%m.%d")} · {hj_yg}{hj_yj}년 {hj_mg}{hj_mj}월 {hj_dg}{hj_dj}일</div>', unsafe_allow_html=True)
     # 사주 원국
-    st.markdown('<div class="sec-title">🏛 사주 원국</div>', unsafe_allow_html=True)
     st.markdown(render_saju_table(fp,ilgan), unsafe_allow_html=True)
     # 格 박스 - 절입명칭 정확히 표시
     month_ji=fp['month'][1]
@@ -657,7 +656,7 @@ def page_saju():
                     new_seun.append((sy,CHEONGAN[off%10],JIJI[off%12]))
                 st.session_state.saju_data['seun']=new_seun
                 st.session_state.sel_seun=0
-                st.session_state.page='wolun'
+                st.session_state.page='saju'
                 st.rerun()
     # 세운 (오른쪽->왼쪽)
     sel_su=st.session_state.sel_seun
