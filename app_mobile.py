@@ -1,9 +1,13 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
-from datetime import datetime, date, timedelta
-from zoneinfo import ZoneInfo
+from dataclasses import dataclass
+from datetime import datetime, date, time, timedelta, timezone
+import re, math, calendar as cal_mod, os
+from urllib.parse import urlencode
+from urllib.request import urlopen
+import xml.etree.ElementTree as ET
 import streamlit as st
-import math, calendar, os
+from zoneinfo import ZoneInfo
 
 try:
     from korean_lunar_calendar import KoreanLunarCalendar
@@ -11,104 +15,414 @@ try:
 except Exception:
     HAS_LUNAR = False
 
+def get_kasi_key():
+    try:
+        val = st.secrets.get('KASI_KEY')
+        if val: return val
+    except Exception: pass
+    return os.getenv('KASI_KEY')
+
 LOCAL_TZ = ZoneInfo('Asia/Seoul')
+BASE_MIN = 8 * 60 + 30
+
+def to_solar_time(dt_local):
+    off = dt_local.utcoffset()
+    if off is None: raise ValueError('dt_local must be timezone-aware')
+    off_min = int(off.total_seconds() // 60)
+    delta = off_min - BASE_MIN
+    return dt_local - timedelta(minutes=delta)
+
+KR_CITY_LON = {'서울':127.0,'가평':127.5,'대전':127.5,'부산':129.0,'대구':128.5,'제주':126.5,'인천':126.5,'울산':128.5,'광주':127.0,'울릉도':130.9}
+BASE_MERIDIAN = 127.5
+DEG2MIN = 4.0
+
+def apply_longitude_correction(dt_solar, city_lon):
+    if city_lon is None: return dt_solar
+    delta_min = (BASE_MERIDIAN - float(city_lon)) * DEG2MIN
+    return dt_solar + timedelta(minutes=delta_min)
+
 CHEONGAN = ['갑','을','병','정','무','기','경','신','임','계']
-JIJI     = ['자','축','인','묘','진','사','오','미','신','유','술','해']
+JIJI = ['자','축','인','묘','진','사','오','미','신','유','술','해']
 HANJA_GAN = ['甲','乙','丙','丁','戊','己','庚','辛','壬','癸']
 HANJA_JI  = ['子','丑','寅','卯','辰','巳','午','未','申','酉','戌','亥']
-OHAENG_GAN = ['목','목','화','화','토','토','금','금','수','수']
-OHAENG_JI  = ['수','토','목','목','토','화','화','토','금','금','토','수']
-COLOR_MAP = {'목':'#4CAF50','화':'#E53935','토':'#FFC107','금':'#EEEEEE','수':'#1A1A2E'}
-TEXT_COLOR = {'목':'#fff','화':'#fff','토':'#222','금':'#222','수':'#fff'}
-SIPSIN_TABLE = [
-    ['비견','겁재','식신','상관','편재','정재','편관','정관','편인','정인'],
-    ['겁재','비견','상관','식신','정재','편재','정관','편관','정인','편인'],
-    ['편인','정인','비견','겁재','식신','상관','편재','정재','편관','정관'],
-    ['정인','편인','겁재','비견','상관','식신','정재','편재','정관','편관'],
-    ['편관','정관','편인','정인','비견','겁재','식신','상관','편재','정재'],
-    ['정관','편관','정인','편인','겁재','비견','상관','식신','정재','편재'],
-    ['편재','정재','편관','정관','편인','정인','비견','겁재','식신','상관'],
-    ['정재','편재','정관','편관','정인','편인','겁재','비견','상관','식신'],
-    ['식신','상관','편재','정재','편관','정관','편인','정인','비견','겁재'],
-    ['상관','식신','정재','편재','정관','편관','정인','편인','겁재','비견'],
-]
-JEOLGI_DAYS = {1:6,2:4,3:6,4:5,5:6,6:6,7:7,8:8,9:8,10:8,11:7,12:7}
-JIJANGGAN_MAIN = ['계','기','갑','을','무','병','정','기','경','신','무','임']
-def get_gan_idx(g): return CHEONGAN.index(g) if g in CHEONGAN else 0
-def get_ji_idx(j):  return JIJI.index(j) if j in JIJI else 0
-def ohaeng_gan(g):  return OHAENG_GAN[get_gan_idx(g)]
-def ohaeng_ji(j):   return OHAENG_JI[get_ji_idx(j)]
-def color_gan(g):   return COLOR_MAP[ohaeng_gan(g)]
-def color_ji(j):    return COLOR_MAP[ohaeng_ji(j)]
-def textc_gan(g):   return TEXT_COLOR[ohaeng_gan(g)]
-def textc_ji(j):    return TEXT_COLOR[ohaeng_ji(j)]
+MONTH_JI = ['인','묘','진','사','오','미','신','유','술','해','자','축']
 
-def sipsin(ilgan, other_gan):
-    i = get_gan_idx(ilgan); j = get_gan_idx(other_gan)
-    return SIPSIN_TABLE[i][j]
+JIE_TO_MONTH_JI = {'입춘':'인','경칩':'묘','청명':'진','입하':'사','망종':'오','소서':'미','입추':'신','백로':'유','한로':'술','입동':'해','대설':'자','소한':'축','(전년)대설':'자'}
+MONTH_TO_2TERMS = {'인':('입춘','우수'),'묘':('경칩','춘분'),'진':('청명','곡우'),'사':('입하','소만'),'오':('망종','하지'),'미':('소서','대서'),'신':('입추','처서'),'유':('백로','추분'),'술':('한로','상강'),'해':('입동','소설'),'자':('대설','동지'),'축':('소한','대한')}
 
-def sipsin_ji(ilgan, ji):
-    return sipsin(ilgan, JIJANGGAN_MAIN[get_ji_idx(ji)])
+GAN_BG = {'갑':'#2ecc71','을':'#2ecc71','병':'#e74c3c','정':'#e74c3c','무':'#f1c40f','기':'#f1c40f','경':'#ffffff','신':'#ffffff','임':'#000000','계':'#000000'}
+BR_BG  = {'해':'#000000','자':'#000000','인':'#2ecc71','묘':'#2ecc71','사':'#e74c3c','오':'#e74c3c','신':'#ffffff','유':'#ffffff','진':'#f1c40f','술':'#f1c40f','축':'#f1c40f','미':'#f1c40f'}
 
-def solar_to_saju(year, month, day, hour, minute):
-    y_off = (year - 4) % 60
-    y_gan = CHEONGAN[y_off % 10]; y_ji = JIJI[y_off % 12]
-    jd = JEOLGI_DAYS.get(month, 6)
-    m_num = month if day >= jd else month - 1
-    if m_num <= 0: m_num += 12
-    base_y = year if (day >= jd or month > 1) else year - 1
-    m_off = (base_y - 4) * 12 + (m_num - 1)
-    m_gan = CHEONGAN[m_off % 10]; m_ji = JIJI[(m_num + 1) % 12]
-    delta = (date(year, month, day) - date(1900, 1, 1)).days
-    d_gan = CHEONGAN[delta % 10]; d_ji = JIJI[delta % 12]
-    si_idx = ((hour + 1) // 2) % 12
-    si_base = (get_gan_idx(d_gan) % 5) * 2
-    si_gan = CHEONGAN[(si_base + si_idx) % 10]; si_ji = JIJI[si_idx]
-    return (y_gan, y_ji), (m_gan, m_ji), (d_gan, d_ji), (si_gan, si_ji)
+def gan_fg(gan): bg=GAN_BG.get(gan,'#fff'); return '#000000' if bg in ('#ffffff','#f1c40f') else '#ffffff'
+def br_fg(ji):   bg=BR_BG.get(ji,'#fff');  return '#000000' if bg in ('#ffffff','#f1c40f') else '#ffffff'
 
-def calc_daeun(year, month, day, gender):
-    y_off = (year - 4) % 60
-    y_gan_idx = y_off % 10
-    go_fwd = (y_gan_idx % 2 == 0) == (gender == '남')
-    jd = JEOLGI_DAYS.get(month, 6)
-    m_num = month if day >= jd else month - 1
-    if m_num <= 0: m_num += 12
-    base_y = year if (day >= jd or month > 1) else year - 1
-    m_off = (base_y - 4) * 12 + (m_num - 1)
-    mg = m_off % 10; mj = (m_num + 1) % 12
-    result = []
-    for i in range(1, 9):
-        g = CHEONGAN[(mg + i) % 10 if go_fwd else (mg - i) % 10]
-        j = JIJI[(mj + i) % 12 if go_fwd else (mj - i) % 12]
-        result.append((8 + (i-1)*10, g, j))
-    return result
+STEM_ELEM = {'갑':'목','을':'목','병':'화','정':'화','무':'토','기':'토','경':'금','신':'금','임':'수','계':'수'}
+STEM_YY   = {'갑':'양','을':'음','병':'양','정':'음','무':'양','기':'음','경':'양','신':'음','임':'양','계':'음'}
+BRANCH_MAIN = {'자':'계','축':'기','인':'갑','묘':'을','진':'무','사':'병','오':'정','미':'기','신':'경','유':'신','술':'무','해':'임'}
+ELEM_PRODUCE  = {'목':'화','화':'토','토':'금','금':'수','수':'목'}
+ELEM_CONTROL  = {'목':'토','화':'금','토':'수','금':'목','수':'화'}
+ELEM_OVER_ME  = {v:k for k,v in ELEM_CONTROL.items()}
+ELEM_PROD_ME  = {v:k for k,v in ELEM_PRODUCE.items()}
 
-def calc_seun(start=2015, count=20):
-    result = []
-    for i in range(count):
-        y = start + i
-        off = (y - 4) % 60
-        result.append((y, CHEONGAN[off%10], JIJI[off%12]))
-    return result
+SAMHAP = {'화':{'인','오','술'},'목':{'해','묘','미'},'수':{'신','자','진'},'금':{'사','유','축'}}
+MONTH_SAMHAP = {'인':'화','오':'화','술':'화','해':'목','묘':'목','미':'목','신':'수','자':'수','진':'수','사':'금','유':'금','축':'금'}
+INSHINSAHAE = {'인','신','사','해'}
 
-def calc_wolun(year):
-    y_off = (year - 4) % 60
-    base_mg = [2,4,6,8,0][y_off % 10 % 5]
-    months = []
-    for m in range(1, 13):
-        mji = (m + 1) % 12
-        mgan = (base_mg + m - 1) % 10
-        months.append((m, CHEONGAN[mgan], JIJI[mji]))
-    return months
+BRANCH_HIDDEN = {'자':['임','계'],'축':['계','신','기'],'인':['무','병','갑'],'묘':['갑','을'],'진':['을','계','무'],'사':['무','경','병'],'오':['병','기','정'],'미':['정','을','기'],'신':['무','임','경'],'유':['경','신'],'술':['신','정','무'],'해':['무','갑','임']}
+NOTEARTH = {'갑','을','병','정','경','신','임','계'}
 
-def calc_ilun(year, month):
-    _, days = calendar.monthrange(year, month)
-    base = date(1900, 1, 1)
-    result = []
-    for d in range(1, days+1):
-        delta = (date(year, month, d) - base).days
-        result.append((d, CHEONGAN[delta%10], JIJI[delta%12]))
-    return result
+def stems_of_element(elem): return {'목':['갑','을'],'화':['병','정'],'토':['무','기'],'금':['경','신'],'수':['임','계']}[elem]
+def stem_with_polarity(elem, parity): a,b=stems_of_element(elem); return a if parity=='양' else b
+def is_yang_stem(gan): return gan in ['갑','병','무','경','임']
+
+def ten_god_for_stem(day_stem, other_stem):
+    d_e,d_p = STEM_ELEM[day_stem],STEM_YY[day_stem]
+    o_e,o_p = STEM_ELEM[other_stem],STEM_YY[other_stem]
+    if o_e==d_e: return '비견' if o_p==d_p else '겁재'
+    if o_e==ELEM_PRODUCE[d_e]: return '식신' if o_p==d_p else '상관'
+    if o_e==ELEM_CONTROL[d_e]: return '편재' if o_p==d_p else '정재'
+    if o_e==ELEM_OVER_ME[d_e]: return '편관' if o_p==d_p else '정관'
+    if o_e==ELEM_PROD_ME[d_e]: return '편인' if o_p==d_p else '정인'
+    return '미정'
+
+def ten_god_for_branch(day_stem, branch):
+    return ten_god_for_stem(day_stem, BRANCH_MAIN[branch])
+
+def six_for_stem(ds,s): return ten_god_for_stem(ds,s)
+def six_for_branch(ds,b): return ten_god_for_branch(ds,b)
+
+def all_hidden_stems(branches):
+    s=set()
+    for b in branches: s.update(BRANCH_HIDDEN.get(b,[]))
+    return s
+
+def picknon_earth_from(h, start_idx):
+    for i in range(start_idx, len(h)):
+        if h[i] in NOTEARTH: return h[i]
+    return None
+
+def is_first_half_by_terms(dt_solar, first_term_dt, mid_term_dt):
+    return first_term_dt <= dt_solar < mid_term_dt
+JIE_DEGREES = {'입춘':315,'경칩':345,'청명':15,'입하':45,'망종':75,'소서':105,'입추':135,'백로':165,'한로':195,'입동':225,'대설':255,'소한':285}
+JIE_ORDER = ['입춘','경칩','청명','입하','망종','소서','입추','백로','한로','입동','대설','소한']
+JIE24_DEGREES = {'입춘':315,'우수':330,'경칩':345,'춘분':0,'청명':15,'곡우':30,'입하':45,'소만':60,'망종':75,'하지':90,'소서':105,'대서':120,'입추':135,'처서':150,'백로':165,'추분':180,'한로':195,'상강':210,'입동':225,'소설':240,'대설':255,'동지':270,'소한':285,'대한':300}
+JIE24_ORDER = ['입춘','우수','경칩','춘분','청명','곡우','입하','소만','망종','하지','소서','대서','입추','처서','백로','추분','한로','상강','입동','소설','대설','동지','소한','대한']
+
+SIDU_START = {('갑','기'):'갑',('을','경'):'병',('병','신'):'무',('정','임'):'경',('무','계'):'임'}
+def month_start_gan_idx(year_gan_idx): return ((year_gan_idx % 5) * 2 + 2) % 10
+K_ANCHOR = 49
+
+def jdn_0h_utc(y,m,d):
+    if m<=2: y-=1; m+=12
+    A=y//100; B=2-A+A//4
+    return int(365.25*(y+4716))+int(30.6001*(m+1))+d+B-1524
+
+def jd_from_utc(dt_utc):
+    y=dt_utc.year; m=dt_utc.month
+    d=dt_utc.day+(dt_utc.hour+dt_utc.minute/60+dt_utc.second/3600)/24
+    if m<=2: y-=1; m+=12
+    A=y//100; B=2-A+A//4
+    return int(365.25*(y+4716))+int(30.6001*(m+1))+d+B-1524.5
+
+def norm360(x): return x%360.0
+def wrap180(x): return (x+180.0)%360.0-180.0
+
+def solar_longitude_deg(dt_utc):
+    JD=jd_from_utc(dt_utc); T=(JD-2451545.0)/36525.0
+    L0=norm360(280.46646+36000.76983*T+0.0003032*T*T)
+    M=norm360(357.52911+35999.05029*T-0.0001537*T*T)
+    Mr=math.radians(M)
+    C=((1.914602-0.004817*T-0.000014*T*T)*math.sin(Mr)
+       +(0.019993-0.000101*T)*math.sin(2*Mr)
+       +0.000289*math.sin(3*Mr))
+    theta=L0+C
+    Omega=125.04-1934.136*T
+    lam=theta-0.00569-0.00478*math.sin(math.radians(Omega))
+    return norm360(lam)
+
+def find_longitude_time_local(year, target_deg, approx_dt_local):
+    a=(approx_dt_local-timedelta(days=3)).astimezone(timezone.utc)
+    b=(approx_dt_local+timedelta(days=3)).astimezone(timezone.utc)
+    def f(dt_utc): return wrap180(solar_longitude_deg(dt_utc)-target_deg)
+    scan,step=a,timedelta(hours=6); fa=f(scan); found=False
+    while scan<b:
+        scan2=scan+step; fb=f(scan2)
+        if fa==0 or fb==0 or (fa<0 and fb>0) or (fa>0 and fb<0):
+            a,b=scan,scan2; found=True; break
+        scan,fa=scan2,fb
+    if not found:
+        a=(approx_dt_local-timedelta(days=1)).astimezone(timezone.utc)
+        b=(approx_dt_local+timedelta(days=1)).astimezone(timezone.utc)
+    for _ in range(70):
+        mid=a+(b-a)/2; fm=f(mid); fa=f(a)
+        if fm==0: a=b=mid; break
+        if (fa<=0 and fm>=0) or (fa>=0 and fm<=0): b=mid
+        else: a=mid
+    res=(a+(b-a)/2).astimezone(LOCAL_TZ)
+    return res.replace(second=0,microsecond=0)
+
+def approx_guess_local(year):
+    rough={'입춘':(2,4),'경칩':(3,6),'청명':(4,5),'입하':(5,6),'망종':(6,6),'소서':(7,7),'입추':(8,8),'백로':(9,8),'한로':(10,8),'입동':(11,7),'대설':(12,7),'소한':(1,6)}
+    out={}
+    for name,(m,d) in rough.items(): out[name]=datetime(year,m,d,9,0,tzinfo=LOCAL_TZ)
+    out['(전년)대설']=datetime(year-1,12,7,9,0,tzinfo=LOCAL_TZ)
+    return out
+
+def approx_guess_local_24(year):
+    rough={'입춘':(2,4),'우수':(2,19),'경칩':(3,6),'춘분':(3,21),'청명':(4,5),'곡우':(4,20),'입하':(5,6),'소만':(5,21),'망종':(6,6),'하지':(6,21),'소서':(7,7),'대서':(7,23),'입추':(8,8),'처서':(8,23),'백로':(9,8),'추분':(9,23),'한로':(10,8),'상강':(10,23),'입동':(11,7),'소설':(11,22),'대설':(12,7),'동지':(12,22),'소한':(1,6),'대한':(1,20)}
+    out={}
+    for name,(m,d) in rough.items(): out[name]=datetime(year,m,d,9,0,tzinfo=LOCAL_TZ)
+    return out
+
+def compute_jie_times_calc(year):
+    guesses=approx_guess_local(year); terms={}
+    for name in JIE_ORDER:
+        terms[name]=find_longitude_time_local(year,JIE_DEGREES[name],guesses[name])
+    terms['(전년)대설']=find_longitude_time_local(year-1,JIE_DEGREES['대설'],guesses['(전년)대설'])
+    return terms
+
+def compute_jie24_times_calc(year):
+    guesses=approx_guess_local_24(year); out={}
+    for name in JIE24_ORDER:
+        out[name]=find_longitude_time_local(guesses[name].year,JIE24_DEGREES[name],guesses[name])
+    return out
+
+def jie_times_calc(year): return compute_jie_times_calc(year)
+def jie24_times_calc(year): return compute_jie24_times_calc(year)
+def pillar_day_by_2300(dt_solar):
+    return (dt_solar+timedelta(days=1)).date() if (dt_solar.hour,dt_solar.minute)>=(23,0) else dt_solar.date()
+
+def day_ganji_solar(dt_solar, k_anchor=K_ANCHOR):
+    d=pillar_day_by_2300(dt_solar)
+    idx60=(jdn_0h_utc(d.year,d.month,d.day)+k_anchor)%60
+    cidx,jidx=idx60%10,idx60%12
+    return CHEONGAN[cidx]+JIJI[jidx],cidx,jidx
+
+def hour_branch_idx_2300(dt_solar):
+    mins=dt_solar.hour*60+dt_solar.minute
+    off=(mins-(23*60))%1440
+    return off//120
+
+def sidu_zi_start_gan(day_gan):
+    for pair,start in SIDU_START.items():
+        if day_gan in pair: return start
+    raise ValueError('invalid day gan')
+
+def four_pillars_from_solar(dt_solar, k_anchor=K_ANCHOR):
+    jie12=compute_jie_times_calc(dt_solar.year)
+    jie_solar={name:to_solar_time(t) for name,t in jie12.items() if hasattr(t,'utcoffset')}
+    # jie12가 이미 LOCAL_TZ이면 to_solar_time 적용
+    jie_solar={name:(to_solar_time(t) if t.utcoffset() is not None else t) for name,t in jie12.items()}
+    ipchun=jie_solar.get('입춘')
+    if ipchun is None:
+        jie12_tz=compute_jie_times_calc(dt_solar.year)
+        ipchun=to_solar_time(list(jie12_tz.values())[0])
+    y=dt_solar.year-1 if dt_solar<ipchun else dt_solar.year
+    y_gidx=(y-4)%10; y_jidx=(y-4)%12
+    year_pillar=CHEONGAN[y_gidx]+JIJI[y_jidx]
+    order=list(jie_solar.items()); order.sort(key=lambda x:x[1])
+    last='(전년)대설'
+    for name,t in order:
+        if dt_solar>=t: last=name
+        else: break
+    m_branch=JIE_TO_MONTH_JI[last]
+    m_bidx=MONTH_JI.index(m_branch)
+    m_gidx=(month_start_gan_idx(y_gidx)+m_bidx)%10
+    month_pillar=CHEONGAN[m_gidx]+m_branch
+    day_pillar,d_cidx,d_jidx=day_ganji_solar(dt_solar,k_anchor)
+    h_j_idx=hour_branch_idx_2300(dt_solar)
+    zi_start=sidu_zi_start_gan(CHEONGAN[d_cidx])
+    h_c_idx=(CHEONGAN.index(zi_start)+h_j_idx)%10
+    hour_pillar=CHEONGAN[h_c_idx]+JIJI[h_j_idx]
+    return {'year':year_pillar,'month':month_pillar,'day':day_pillar,'hour':hour_pillar,
+            'y_gidx':y_gidx,'m_gidx':m_gidx,'m_bidx':m_bidx,'d_cidx':d_cidx}
+
+def next_prev_jie(dt_solar, jie_solar_dict):
+    items=[(n,t) for n,t in jie_solar_dict.items()]
+    items.sort(key=lambda x:x[1])
+    prev_t=items[0][1]
+    for _,t in items:
+        if t>dt_solar: return prev_t,t
+        prev_t=t
+    return prev_t,prev_t
+
+def round_half_up(x): return int(math.floor(x+0.5))
+
+def dayun_start_age(dt_solar, jie12_solar, forward):
+    prev_t,next_t=next_prev_jie(dt_solar,jie12_solar)
+    delta_days=(next_t-dt_solar).total_seconds()/86400.0 if forward else (dt_solar-prev_t).total_seconds()/86400.0
+    return max(0,round_half_up(delta_days/3.0))
+
+def build_dayun_list(month_gidx, month_bidx, forward, start_age, count=8):
+    dirv=1 if forward else -1
+    out=[]
+    for i in range(1,count+1):
+        g_i=(month_gidx+dirv*i)%10
+        b_i=(month_bidx+dirv*i)%12
+        out.append({'start_age':start_age+(i-1)*10,'g_idx':g_i,'b_idx':b_i})
+    return out
+
+def calc_age_on(dob, now_dt):
+    today=now_dt.date() if hasattr(now_dt,'date') else now_dt
+    return today.year-dob.year-((today.month,today.day)<(dob.month,dob.day))
+
+def lunar_to_solar(y,m,d,is_leap=False):
+    if not HAS_LUNAR: raise RuntimeError('korean-lunar-calendar 미설치')
+    c=KoreanLunarCalendar(); c.setLunarDate(y,m,d,is_leap)
+    return date(c.solarYear,c.solarMonth,c.solarDay)
+@dataclass
+class Inputs:
+    day_stem: str
+    month_branch: str
+    month_stem: str
+    stems_visible: list
+    branches_visible: list
+    solar_dt: datetime
+    first_term_dt: datetime
+    mid_term_dt: datetime
+    day_from_jieqi: int
+
+def decide_geok(inp):
+    ds=inp.day_stem; mb=inp.month_branch; ms=inp.month_stem
+    stems=list(inp.stems_visible); branches=list(inp.branches_visible)
+    ds_e=STEM_ELEM[ds]; ds_p=STEM_YY[ds]
+    mb_main=BRANCH_MAIN[mb]
+    mb_e,mb_p=STEM_ELEM[mb_main],STEM_YY[mb_main]
+    visible_set=set(stems); hidden_set=all_hidden_stems(branches)
+    pool=visible_set|hidden_set
+    if mb in {'자','오','묘','유','인','신','사','해'} and ds_e==mb_e:
+        off_e=ELEM_OVER_ME[ds_e]
+        jung_gwan=stem_with_polarity(off_e,'음' if ds_p=='양' else '양')
+        pyeon_gwan=stem_with_polarity(off_e,ds_p)
+        same_polarity=(ds_p==mb_p)
+        any_jung_br=any(ten_god_for_branch(ds,b)=='정관' for b in branches)
+        jung_branches=[b for b in branches if ten_god_for_branch(ds,b)=='정관']
+        any_pyeon_br=any(ten_god_for_branch(ds,b)=='편관' for b in branches)
+        pyeon_branches=[b for b in branches if ten_god_for_branch(ds,b)=='편관']
+        if same_polarity:
+            if (jung_gwan in visible_set) or any_jung_br:
+                why=('정관 '+jung_gwan+' 천간 투간' if jung_gwan in visible_set else '지지 정관 존재')
+                return '건록격',f'[특수] 월비+{why}→건록격'
+            else: return '월비격','[특수] 월비·정관 없음→월비격'
+        else:
+            if (pyeon_gwan in visible_set) or any_pyeon_br:
+                why=('편관 '+pyeon_gwan+' 천간 투간' if pyeon_gwan in visible_set else '지지 편관 존재')
+                return '양인격',f'[특수] 월겁+{why}→양인격'
+            else: return '월겁격','[특수] 월겁·편관 없음→월겁격'
+    grp='자오묘유' if mb in {'자','오','묘','유'} else ('인신사해' if mb in {'인','신','사','해'} else '진술축미')
+    if grp=='자오묘유':
+        month_elem=STEM_ELEM[mb_main]
+        same_elem_vis=[s for s in stems if STEM_ELEM.get(s)==month_elem]
+        if same_elem_vis:
+            pick=next((s for s in same_elem_vis if STEM_YY[s]!=ds_p),same_elem_vis[0])
+            six=ten_god_for_stem(ds,pick)
+            return f'{six}격',f'[자오묘유] {pick} 투간→{six}격'
+        six=ten_god_for_stem(ds,mb_main)
+        return f'{six}격',f'[자오묘유] 투간없음→체(본기 {mb_main}){six}격'
+    if grp=='인신사해':
+        rokji=mb_main; month_elem=STEM_ELEM[rokji]
+        base_stems=set(stems_of_element(month_elem))
+        base_vis=[s for s in inp.stems_visible if s in base_stems]
+        if base_vis:
+            pick=base_vis[0]
+            if month_elem==STEM_ELEM[ds]:
+                off_e=ELEM_OVER_ME[STEM_ELEM[ds]]
+                jung_gwan=stem_with_polarity(off_e,'음' if STEM_YY[ds]=='양' else '양')
+                pyeon_gwan=stem_with_polarity(off_e,STEM_YY[ds])
+                if STEM_YY[pick]==STEM_YY[ds]:
+                    if jung_gwan in inp.stems_visible:
+                        return '건록격',f'[인신사해] {pick}투간+정관{jung_gwan}→건록격'
+                else:
+                    if pyeon_gwan in inp.stems_visible:
+                        return '양인격',f'[인신사해] {pick}투간+편관{pyeon_gwan}→양인격'
+            six=ten_god_for_stem(ds,pick)
+            return f'{six}격',f'[인신사해] 록지{pick}투간→{six}격'
+        tri_elem=MONTH_SAMHAP.get(mb,'')
+        if tri_elem:
+            tri_grp=SAMHAP[tri_elem]
+            others=set(tri_grp)-{mb}
+            if others.issubset(set(inp.branches_visible)) and is_first_half_by_terms(inp.solar_dt,inp.first_term_dt,inp.mid_term_dt):
+                tri_stems=stems_of_element(tri_elem)
+                tri_vis=[s for s in tri_stems if s in inp.stems_visible]
+                if tri_vis and tri_elem!=STEM_ELEM[ds]:
+                    pick=tri_vis[0]; six=ten_god_for_stem(ds,pick)
+                    return f'중기격({six})',f'[인신사해] 삼합+중기사령+{pick}투간→중기격'
+        if ms:
+            six=ten_god_for_stem(ds,ms)
+            return f'{six}격',f'[인신사해] 록지투간없음→월간{ms}기준{six}격'
+        six=ten_god_for_stem(ds,rokji)
+        return f'{six}격',f'[인신사해] 폴백→본기({rokji}){six}격'
+    if grp=='진술축미':
+        h=BRANCH_HIDDEN.get(mb,[])
+        mb_main_l=BRANCH_MAIN[mb]
+        is_front12=(inp.day_from_jieqi<=11)
+        tri_elem=MONTH_SAMHAP.get(mb,'')
+        if tri_elem:
+            tri_grp=SAMHAP[tri_elem]
+            others=set(tri_grp)-{mb}
+            partners=others&set(branches)
+            if partners:
+                if tri_elem==STEM_ELEM[ds]:
+                    six=ten_god_for_stem(ds,mb_main_l)
+                    return f'{six}격',f'[진술축미] 반합{mb}+동일오행→체(본기){six}격'
+                tri_stems=stems_of_element(tri_elem)
+                tri_vis=[s for s in tri_stems if s in visible_set]
+                mid_qi=h[1] if len(h)>=2 else (h[-1] if h else mb_main_l)
+                mid_is_tri=(STEM_ELEM.get(mid_qi)==tri_elem)
+                pick=tri_vis[0] if tri_vis else (mid_qi if mid_is_tri else stem_with_polarity(tri_elem,'음' if STEM_YY[ds]=='양' else '양'))
+                six=ten_god_for_stem(ds,pick)
+                return f'{six}격',f'[진술축미] 반합+{pick}기준{six}격'
+        if is_front12:
+            yeogi=h[0] if h else mb_main_l
+            y_elem=STEM_ELEM[yeogi]
+            same_vis=[s for s in stems if STEM_ELEM.get(s)==y_elem]
+            opp=[s for s in same_vis if STEM_YY[s]!=ds_p]
+            pick=opp[0] if opp else (same_vis[0] if same_vis else yeogi)
+            six=ten_god_for_stem(ds,pick)
+            return f'{six}격',f'[진술축미] 절입후12일이내→여기사령({pick}){six}격'
+        else:
+            earth_vis=[s for s in ('무','기') if s in visible_set]
+            opp=[s for s in earth_vis if STEM_YY[s]!=ds_p]
+            pick=opp[0] if opp else (earth_vis[0] if earth_vis else mb_main_l)
+            six=ten_god_for_stem(ds,pick)
+            return f'{six}격',f'[진술축미] 절입13일이후→주왕토({pick}){six}격'
+    six=ten_god_for_stem(ds,BRANCH_MAIN[mb])
+    return f'{six}격',f'[폴백]→체(본기{BRANCH_MAIN[mb]}){six}격'
+def calc_wolun_accurate(year):
+    jie24=compute_jie24_times_calc(year)
+    jie24_next=compute_jie24_times_calc(year+1)
+    y_gidx=(year-4)%10
+    start_mg=month_start_gan_idx(y_gidx)
+    items=[]
+    for i in range(12):
+        gidx=(start_mg+i)%10
+        bidx=i
+        gan,ji=CHEONGAN[gidx],MONTH_JI[bidx]
+        t1_name,t2_name=MONTH_TO_2TERMS[ji]
+        def get_t(name,src24):
+            t=src24.get(name)
+            return to_solar_time(t) if t and t.utcoffset() is not None else t
+        t1=get_t(t1_name,jie24)
+        if t1 is None: t1=get_t(t1_name,jie24_next)
+        t2=get_t(t2_name,jie24)
+        if t2 is None: t2=get_t(t2_name,jie24_next)
+        next_bidx=(bidx+1)%12
+        next_t1_name=MONTH_TO_2TERMS[MONTH_JI[next_bidx]][0]
+        t_end=get_t(next_t1_name,jie24)
+        if t_end is None: t_end=get_t(next_t1_name,jie24_next)
+        items.append({'month':i+1,'gan':gan,'ji':ji,'t1':t1,'t2':t2,'t_end':t_end})
+    return items
+
+def calc_ilun_strip(start_dt, end_dt, day_stem, k_anchor=K_ANCHOR):
+    items=[]
+    cur=start_dt.replace(hour=12,minute=0,second=0,microsecond=0)
+    if cur<start_dt: cur=cur+timedelta(days=1)
+    while cur<end_dt:
+        dj,dc,djidx=day_ganji_solar(cur,k_anchor)
+        g,j=dj[0],dj[1]
+        items.append({'date':cur.date(),'gan':g,'ji':j,'six':f'{six_for_stem(day_stem,g)}/{six_for_branch(day_stem,j)}'})
+        cur=cur+timedelta(days=1)
+    return items
 MOBILE_CSS = """
 <style>
 :root{--bg:#2C3650;--bg2:#1e2840;--card:#3a4565;--acc:#a0945e;--text:#e8dfc8;--sub:#b0a888;--r:10px;--bdr:#4a5580;}
@@ -125,15 +439,18 @@ body,.stApp{background:var(--bg)!important;color:var(--text)!important;font-fami
 .saju-table th{font-size:11px;color:var(--sub);text-align:center;padding:4px 0;}
 .saju-table .lb td{font-size:10px;color:var(--sub);text-align:center;padding:2px 0;}
 .gcell,.jcell{text-align:center;padding:0;}
-.gcell div,.jcell div{display:flex;align-items:center;justify-content:center;width:100%;height:52px;border-radius:8px;font-weight:900;font-size:28px;border:1px solid rgba(0,0,0,.15);margin:2px auto;}
+.gcell div,.jcell div{display:flex;align-items:center;justify-content:center;width:100%;height:52px;border-radius:8px;font-weight:900;font-size:26px;border:1px solid rgba(0,0,0,.15);margin:2px auto;}
 .strip-outer{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:thin;padding:2px 0;}
 .strip-inner{display:inline-flex;flex-wrap:nowrap;gap:4px;padding:2px 4px;}
-.un-card{display:flex;flex-direction:column;align-items:center;min-width:52px;padding:4px 2px 6px;border:1px solid var(--bdr);border-radius:10px;background:var(--card);cursor:pointer;transition:border-color .2s;}
+.un-card{display:flex;flex-direction:column;align-items:center;min-width:52px;padding:4px 2px 6px;border:1px solid var(--bdr);border-radius:10px;background:var(--card);cursor:pointer;}
 .un-card.active{border:2px solid var(--acc)!important;background:#4a5580;}
 .un-card .lbl{font-size:10px;color:var(--sub);margin-bottom:2px;}
 .un-card .gbox,.un-card .jbox{width:44px;height:44px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:900;border:1px solid rgba(0,0,0,.1);margin-bottom:2px;}
 .un-card .ss{font-size:9px;color:var(--sub);text-align:center;}
 .sec-title{font-size:13px;color:var(--acc);font-weight:bold;padding:4px 6px;border-left:3px solid var(--acc);margin:10px 0 6px;}
+.geok-box{background:rgba(60,75,110,.6);border:1px solid var(--acc);border-radius:8px;padding:10px 12px;margin:8px 0;font-size:12px;color:var(--text);}
+.geok-name{font-size:16px;font-weight:900;color:#ffd700;margin-bottom:4px;}
+.geok-why{font-size:11px;color:var(--sub);line-height:1.4;}
 .today-banner{background:linear-gradient(135deg,#3d4f7a,#2C3650);border:1px solid var(--acc);border-radius:8px;padding:6px 12px;margin-bottom:8px;font-size:12px;color:var(--sub);text-align:center;}
 .sel-info{background:var(--card);border:1px solid var(--acc);border-radius:8px;padding:6px 12px;margin-bottom:8px;font-size:12px;color:var(--text);text-align:center;}
 .cal-wrap{background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--r);overflow:hidden;margin-bottom:10px;}
@@ -146,319 +463,332 @@ body,.stApp{background:var(--bg)!important;color:var(--text)!important;font-fami
 .cal-table td.today-cell{background:#4a3c28;border:1px solid var(--acc);}
 .cal-table td.sun .dn{color:#E53935;}
 .cal-table td.sat .dn{color:#5b8fd4;}
+.ai-btn{display:block;background:linear-gradient(135deg,#7b4fa0,#4a2a70);border:1px solid #a070c0;border-radius:12px;padding:12px;text-align:center;color:#e8d0ff;font-size:14px;font-weight:bold;text-decoration:none;margin:12px 0;}
 label{color:var(--text)!important;font-size:13px!important;}
 div[data-testid='stHorizontalBlock']{gap:4px!important;}
 div[data-testid='column']{padding:0 2px!important;}
 </style>
 """
-def gan_card(g, size=52, fsize=28):
-    bg = COLOR_MAP[ohaeng_gan(g)]
-    tc = TEXT_COLOR[ohaeng_gan(g)]
-    hj = HANJA_GAN[get_gan_idx(g)]
-    return f'<div style="width:{size}px;height:{size}px;border-radius:8px;background:{bg};color:{tc};display:flex;align-items:center;justify-content:center;font-size:{fsize}px;font-weight:900;border:1px solid rgba(0,0,0,.15);">{hj}</div>'
+def hanja_gan(g): return HANJA_GAN[CHEONGAN.index(g)]
+def hanja_ji(j): return HANJA_JI[JIJI.index(j)]
 
-def ji_card(j, size=52, fsize=28):
-    bg = COLOR_MAP[ohaeng_ji(j)]
-    tc = TEXT_COLOR[ohaeng_ji(j)]
-    hj = HANJA_JI[get_ji_idx(j)]
-    return f'<div style="width:{size}px;height:{size}px;border-radius:8px;background:{bg};color:{tc};display:flex;align-items:center;justify-content:center;font-size:{fsize}px;font-weight:900;border:1px solid rgba(0,0,0,.15);">{hj}</div>'
+def gan_card_html(g, size=52, fsize=26):
+    bg=GAN_BG.get(g,'#888'); fg=gan_fg(g); hj=hanja_gan(g)
+    return f'<div style="width:{size}px;height:{size}px;border-radius:8px;background:{bg};color:{fg};display:flex;align-items:center;justify-content:center;font-size:{fsize}px;font-weight:900;border:1px solid rgba(0,0,0,.15);">{hj}</div>'
 
-def render_saju_table(saju, ilgan):
-    """사주 원국 HTML 테이블 - 시/일/월/년 오른쪽에서 왼쪽 순서"""
-    (yg,yj),(mg,mj),(dg,dj),(sg,sj) = saju
-    cols = [(sg,sj,'시주'),(dg,dj,'일주'),(mg,mj,'월주'),(yg,yj,'년주')]
-    # 십신 계산
-    ss_g = [sipsin(ilgan, sg), '일간', sipsin(ilgan, mg), sipsin(ilgan, yg)]
-    ss_j = [sipsin_ji(ilgan, sj), sipsin_ji(ilgan, dj), sipsin_ji(ilgan, mj), sipsin_ji(ilgan, yj)]
-    html = '<div class="saju-wrap"><table class="saju-table"><thead><tr>'
-    for (g,j,lbl) in cols:
-        html += f'<th>{lbl}</th>'
-    html += '</tr><tr class="lb">'
-    for i,(g,j,_) in enumerate(cols):
-        html += f'<td>{ss_g[i]}</td>'
-    html += '</tr></thead><tbody><tr>'
-    for g,j,_ in cols:
-        html += f'<td class="gcell">{gan_card(g)}</td>'
-    html += '</tr><tr>'
-    for g,j,_ in cols:
-        html += f'<td class="jcell">{ji_card(j)}</td>'
-    html += '</tr><tr class="lb">'
-    for i,(_,j,__) in enumerate(cols):
-        html += f'<td>{ss_j[i]}</td>'
-    html += '</tr></tbody></table></div>'
+def ji_card_html(j, size=52, fsize=26):
+    bg=BR_BG.get(j,'#888'); fg=br_fg(j); hj=hanja_ji(j)
+    return f'<div style="width:{size}px;height:{size}px;border-radius:8px;background:{bg};color:{fg};display:flex;align-items:center;justify-content:center;font-size:{fsize}px;font-weight:900;border:1px solid rgba(0,0,0,.15);">{hj}</div>'
+
+def render_saju_table(fp, ilgan):
+    yg,yj=fp['year'][0],fp['year'][1]
+    mg,mj=fp['month'][0],fp['month'][1]
+    dg,dj=fp['day'][0],fp['day'][1]
+    sg,sj=fp['hour'][0],fp['hour'][1]
+    cols=[(sg,sj,'시주'),(dg,dj,'일주'),(mg,mj,'월주'),(yg,yj,'년주')]
+    ss_g=[six_for_stem(ilgan,sg),'일간',six_for_stem(ilgan,mg),six_for_stem(ilgan,yg)]
+    ss_j=[six_for_branch(ilgan,sj),six_for_branch(ilgan,dj),six_for_branch(ilgan,mj),six_for_branch(ilgan,yj)]
+    html='<div class="saju-wrap"><table class="saju-table"><thead><tr>'
+    for g,j,lbl in cols: html+=f'<th>{lbl}</th>'
+    html+='</tr><tr class="lb">'
+    for i,(g,j,_) in enumerate(cols): html+=f'<td>{ss_g[i]}</td>'
+    html+='</tr></thead><tbody><tr>'
+    for g,j,_ in cols: html+=f'<td class="gcell">{gan_card_html(g)}</td>'
+    html+='</tr><tr>'
+    for g,j,_ in cols: html+=f'<td class="jcell">{ji_card_html(j)}</td>'
+    html+='</tr><tr class="lb">'
+    for i,(_,j,__) in enumerate(cols): html+=f'<td>{ss_j[i]}</td>'
+    html+='</tr></tbody></table></div>'
     return html
 
-def render_strip_cards(items, active_idx, key_prefix, label_fn, show_sipsin=False, ilgan=''):
-    """대운/세운/월운 가로 스트립 HTML"""
-    html = '<div class="strip-outer"><div class="strip-inner">'
-    for i, item in enumerate(items):
-        if len(item) == 3:
-            lbl, g, j = item
-        else:
-            lbl, g, j = item[0], item[1], item[2]
-        active_cls = ' active' if i == active_idx else ''
-        ss = sipsin(ilgan, g) + '/' + sipsin_ji(ilgan, j) if show_sipsin and ilgan else ''
-        bg_g = COLOR_MAP[ohaeng_gan(g)]
-        tc_g = TEXT_COLOR[ohaeng_gan(g)]
-        bg_j = COLOR_MAP[ohaeng_ji(j)]
-        tc_j = TEXT_COLOR[ohaeng_ji(j)]
-        hj_g = HANJA_GAN[get_gan_idx(g)]
-        hj_j = HANJA_JI[get_ji_idx(j)]
-        html += f'''<div class="un-card{active_cls}" onclick="window.parent.postMessage({{type:'streamlit:setComponentValue',key:'{key_prefix}',value:{i}}}, '*')">
-  <div class="lbl">{label_fn(lbl)}</div>
-  <div class="gbox" style="background:{bg_g};color:{tc_g}">{hj_g}</div>
-  <div class="jbox" style="background:{bg_j};color:{tc_j}">{hj_j}</div>
-  <div class="ss">{ss}</div>
-</div>'''
-    html += '</div></div>'
-    return html
+def render_daeun_card(age, g, j, ilgan, active, btn_key):
+    bg_g=GAN_BG.get(g,'#888'); tc_g=gan_fg(g)
+    bg_j=BR_BG.get(j,'#888'); tc_j=br_fg(j)
+    hj_g=hanja_gan(g); hj_j=hanja_ji(j)
+    bdr='2px solid #a0945e' if active else '1px solid #4a5580'
+    bg_card='#4a5580' if active else '#3a4565'
+    ss=f'{six_for_stem(ilgan,g)}/{six_for_branch(ilgan,j)}'
+    st.markdown(f'''<div style="text-align:center;font-size:10px;color:#b0a888;margin-bottom:2px">{age}세</div>
+<div style="display:flex;flex-direction:column;align-items:center;border:{bdr};border-radius:10px;background:{bg_card};padding:3px 2px;">
+<div style="width:38px;height:38px;border-radius:6px;background:{bg_g};color:{tc_g};display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:900;margin-bottom:2px">{hj_g}</div>
+<div style="width:38px;height:38px;border-radius:6px;background:{bg_j};color:{tc_j};display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:900;margin-bottom:2px">{hj_j}</div>
+<div style="font-size:9px;color:#b0a888">{ss}</div>
+</div>''', unsafe_allow_html=True)
+    return st.button(f'{age}', key=btn_key, use_container_width=True)
 # ============================================================
 # 메인 앱
 # ============================================================
 def main():
+    st.set_page_config(page_title='이박사 만세력', layout='centered', page_icon='🔮', initial_sidebar_state='collapsed')
     st.markdown(MOBILE_CSS, unsafe_allow_html=True)
     st.markdown('<div class="page-hdr">만 세 력</div>', unsafe_allow_html=True)
-    if 'page' not in st.session_state: st.session_state.page = 'input'
-    if 'saju_data' not in st.session_state: st.session_state.saju_data = None
-    if 'sel_daeun' not in st.session_state: st.session_state.sel_daeun = None
-    if 'sel_seun' not in st.session_state: st.session_state.sel_seun = None
-    if 'sel_wolun' not in st.session_state: st.session_state.sel_wolun = None
-
-    if st.session_state.page == 'input':
-        page_input()
-    elif st.session_state.page == 'saju':
-        page_saju()
-    elif st.session_state.page == 'wolun':
-        page_wolun()
-    elif st.session_state.page == 'ilun':
-        page_ilun()
-
+    for key,val in [('page','input'),('saju_data',None),('sel_daeun',0),('sel_seun',0),('sel_wolun',0)]:
+        if key not in st.session_state: st.session_state[key]=val
+    if st.session_state.page=='input': page_input()
+    elif st.session_state.page=='saju': page_saju()
+    elif st.session_state.page=='wolun': page_wolun()
+    elif st.session_state.page=='ilun': page_ilun()
 
 def page_input():
-    now = datetime.now(LOCAL_TZ)
+    now=datetime.now(LOCAL_TZ)
     st.markdown('<div class="sec-title">📅 출생 정보 입력</div>', unsafe_allow_html=True)
-    c1, c2 = st.columns(2)
-    with c1:
-        gender = st.radio('성별', ['남', '여'], horizontal=True)
-    with c2:
-        cal_type = st.radio('달력', ['양력', '음력'], horizontal=True)
-    birth_str = st.text_input('생년월일 (YYYYMMDD)', value='19840202', max_chars=8)
-    birth_time = st.text_input('출생시각 (HHMM, 모르면 0000)', value='0000', max_chars=4)
+    c1,c2=st.columns(2)
+    with c1: gender=st.radio('성별',['남','여'],horizontal=True)
+    with c2: cal_type=st.radio('달력',['양력','음력'],horizontal=True)
+    birth_str=st.text_input('생년월일 (YYYYMMDD)',value='19840202',max_chars=8)
+    birth_time=st.text_input('출생시각 (HHMM, 모르면 0000)',value='0000',max_chars=4)
+    is_leap=False
+    if cal_type=='음력':
+        if HAS_LUNAR: is_leap=st.checkbox('윤달',value=False)
+        else: st.warning('음력 모듈 미설치 — pip install korean-lunar-calendar')
     if st.button('🔮 사주 보기'):
         try:
-            y = int(birth_str[:4]); m = int(birth_str[4:6]); d = int(birth_str[6:8])
-            hh = int(birth_time[:2]) if len(birth_time) >= 2 else 0
-            mm = int(birth_time[2:4]) if len(birth_time) == 4 else 0
-            saju = solar_to_saju(y, m, d, hh, mm)
-            daeun = calc_daeun(y, m, d, gender)
-            seun_start = max(y, now.year - 5)
-            seun = calc_seun(seun_start, 20)
-            st.session_state.saju_data = {
-                'birth': (y, m, d, hh, mm),
-                'gender': gender,
-                'saju': saju,
-                'daeun': daeun,
-                'seun': seun,
-                'seun_year': seun_start,
+            bs=re.sub(r'\D','',birth_str); bt=re.sub(r'\D','',birth_time)
+            y=int(bs[:4]); m=int(bs[4:6]); d=int(bs[6:8])
+            hh=int(bt[:2]) if len(bt)>=2 else 0
+            mm=int(bt[2:4]) if len(bt)==4 else 0
+            base_date=date(y,m,d)
+            if cal_type=='음력' and HAS_LUNAR:
+                base_date=lunar_to_solar(y,m,d,is_leap)
+            dt_local=datetime.combine(base_date,time(hh,mm)).replace(tzinfo=LOCAL_TZ)
+            dt_solar=to_solar_time(dt_local)
+            fp=four_pillars_from_solar(dt_solar)
+            ilgan=fp['day'][0]
+            # 절기 계산 (정확한 황경 기반)
+            jie12=compute_jie_times_calc(dt_solar.year)
+            jie12_solar={n:to_solar_time(t) for n,t in jie12.items()}
+            # 대운
+            year_gan=fp['year'][0]
+            forward=(is_yang_stem(year_gan)==(gender=='남'))
+            start_age=dayun_start_age(dt_solar,jie12_solar,forward)
+            daeun=build_dayun_list(fp['m_gidx'],fp['m_bidx'],forward,start_age)
+            # 세운
+            seun_start=max(base_date.year,now.year-5)
+            seun=[]
+            for i in range(20):
+                sy=seun_start+i
+                off=(sy-4)%60
+                seun.append((sy,CHEONGAN[off%10],JIJI[off%12]))
+            # 격 계산
+            jie24=compute_jie24_times_calc(dt_solar.year)
+            jie24_solar={n:to_solar_time(t) for n,t in jie24.items()}
+            pair=MONTH_TO_2TERMS[fp['month'][1]]
+            def nearest_t(name):
+                cands=[(abs((t-dt_solar).total_seconds()),t) for n,t in jie24_solar.items() if n==name]
+                if not cands: return dt_solar
+                cands.sort(); return cands[0][1]
+            t1=nearest_t(pair[0]); t2=nearest_t(pair[1])
+            day_from_jieqi=int((dt_solar-t1).total_seconds()//86400)
+            day_from_jieqi=max(0,min(29,day_from_jieqi))
+            geok,why=decide_geok(Inputs(
+                day_stem=fp['day'][0],month_branch=fp['month'][1],month_stem=fp['month'][0],
+                stems_visible=[fp['year'][0],fp['month'][0],fp['day'][0],fp['hour'][0]],
+                branches_visible=[fp['year'][1],fp['month'][1],fp['day'][1],fp['hour'][1]],
+                solar_dt=dt_solar,first_term_dt=t1,mid_term_dt=t2,day_from_jieqi=day_from_jieqi
+            ))
+            # 현재 대운 인덱스
+            age_now=calc_age_on(base_date,now)
+            sel_du=0
+            for idx,item in enumerate(daeun):
+                if item['start_age']<=age_now: sel_du=idx
+            # 현재 세운 인덱스
+            sel_su=0
+            for idx,(sy,sg,sj) in enumerate(seun):
+                if sy==now.year: sel_su=idx; break
+            st.session_state.saju_data={
+                'birth':(base_date.year,base_date.month,base_date.day,hh,mm),
+                'dt_solar':dt_solar,'gender':gender,'fp':fp,'daeun':daeun,
+                'seun':seun,'seun_start':seun_start,'geok':geok,'why':why,
+                't1':t1,'t2':t2,'day_from_jieqi':day_from_jieqi,
+                'ilgan':ilgan,'start_age':start_age,'forward':forward,
             }
-            # 현재 나이에 해당 대운 자동 선택
-            age = now.year - y
-            sel_du = 0
-            for idx, (da, dg, dj) in enumerate(daeun):
-                if da <= age: sel_du = idx
-            st.session_state.sel_daeun = sel_du
-            # 현재 년도 세운 자동 선택
-            sel_su = 0
-            for idx, (sy, sg, sj) in enumerate(seun):
-                if sy == now.year: sel_su = idx; break
-            st.session_state.sel_seun = sel_su
-            st.session_state.sel_wolun = now.month - 1
-            st.session_state.page = 'saju'
+            st.session_state.sel_daeun=sel_du
+            st.session_state.sel_seun=sel_su
+            st.session_state.sel_wolun=now.month-1
+            st.session_state.page='saju'
             st.rerun()
         except Exception as e:
             st.error(f'입력 오류: {e}')
 def page_saju():
-    data = st.session_state.saju_data
+    data=st.session_state.saju_data
     if not data: st.session_state.page='input'; st.rerun(); return
-    now = datetime.now(LOCAL_TZ)
-    y,m,d,hh,mm = data['birth']
-    saju = data['saju']
-    ilgan = saju[2][0]  # 일간
-    daeun = data['daeun']
-    seun  = data['seun']
-    sel_du = st.session_state.sel_daeun or 0
-    sel_su = st.session_state.sel_seun or 0
-
-    # 뒤로가기
-    if st.button('← 입력으로'):
-        st.session_state.page = 'input'; st.rerun()
-
-    # 오늘 일진
-    today_delta = (now.date() - date(1900,1,1)).days
-    tg = CHEONGAN[today_delta%10]; tj = JIJI[today_delta%12]
-    thj_g = HANJA_GAN[get_gan_idx(tg)]; thj_j = HANJA_JI[get_ji_idx(tj)]
-    off = (now.year-4)%60
-    yg = CHEONGAN[off%10]; yj = JIJI[off%12]
-    st.markdown(f'<div class="today-banner">오늘 {now.strftime("%Y.%m.%d")} · {HANJA_GAN[get_gan_idx(yg)]}{HANJA_JI[get_ji_idx(yj)]}년 {thj_g}{thj_j}일</div>', unsafe_allow_html=True)
-
+    now=datetime.now(LOCAL_TZ)
+    fp=data['fp']; ilgan=data['ilgan']
+    daeun=data['daeun']; seun=data['seun']
+    geok=data['geok']; why=data['why']
+    t1=data['t1']; t2=data['t2']
+    sel_du=st.session_state.sel_daeun
+    sel_su=st.session_state.sel_seun
+    if st.button('← 입력으로'): st.session_state.page='input'; st.rerun()
+    # 오늘 일진 (정확한 황경 기반 계산)
+    now_solar=to_solar_time(now)
+    today_fp=four_pillars_from_solar(now_solar)
+    yg,yj=today_fp['year'][0],today_fp['year'][1]
+    dg,dj=today_fp['day'][0],today_fp['day'][1]
+    hj_yg=hanja_gan(yg); hj_yj=hanja_ji(yj)
+    hj_dg=hanja_gan(dg); hj_dj=hanja_ji(dj)
+    st.markdown(f'<div class="today-banner">오늘 {now.strftime("%Y.%m.%d")} · {hj_yg}{hj_yj}년 {hj_dg}{hj_dj}일</div>', unsafe_allow_html=True)
     # 사주 원국
     st.markdown('<div class="sec-title">🏛 사주 원국</div>', unsafe_allow_html=True)
-    st.markdown(render_saju_table(saju, ilgan), unsafe_allow_html=True)
-
-    # 대운 - 오른쪽에서 왼쪽 (역순 표시 후 클릭)
+    st.markdown(render_saju_table(fp,ilgan), unsafe_allow_html=True)
+    # 격 박스
+    jieqi_disp=f'입절 +{data["day_from_jieqi"]}일'
+    st.markdown(f'''<div class="geok-box">
+<div class="geok-name">格 {geok}</div>
+<div class="geok-why">{why}</div>
+<div class="geok-why" style="margin-top:4px;">{fp["month"][1]}월 司令 ({jieqi_disp}) · 대한 {data["start_age"]}세 {"순행" if data["forward"] else "역행"}</div>
+</div>''', unsafe_allow_html=True)
+    # 대운 (오른쪽에서 왼쪽)
     st.markdown('<div class="sec-title">🎴 대운</div>', unsafe_allow_html=True)
-    daeun_rev = list(reversed(daeun))
-    rev_sel_du = len(daeun) - 1 - sel_du
-    cols_du = st.columns(len(daeun))
-    new_sel_du = sel_du
-    for ci, (col, (age, g, j)) in enumerate(zip(cols_du, daeun_rev)):
-        real_idx = len(daeun) - 1 - ci
+    daeun_rev=list(reversed(daeun))
+    cols_du=st.columns(len(daeun))
+    for ci,col in enumerate(cols_du):
+        real_idx=len(daeun)-1-ci
+        item=daeun_rev[ci]
+        age=item['start_age']
+        g=CHEONGAN[item['g_idx']]; j=MONTH_JI[item['b_idx']]
         with col:
-            active = (real_idx == sel_du)
-            bg_g = COLOR_MAP[ohaeng_gan(g)]; tc_g = TEXT_COLOR[ohaeng_gan(g)]
-            bg_j = COLOR_MAP[ohaeng_ji(j)]; tc_j = TEXT_COLOR[ohaeng_ji(j)]
-            hj_g = HANJA_GAN[get_gan_idx(g)]; hj_j = HANJA_JI[get_ji_idx(j)]
-            border = '2px solid #a0945e' if active else '1px solid #4a5580'
-            bg_card = '#4a5580' if active else '#3a4565'
-            st.markdown(f'''<div style="text-align:center;font-size:10px;color:#b0a888;margin-bottom:2px">{age}세</div>
-<div style="display:flex;flex-direction:column;align-items:center;border:{border};border-radius:10px;background:{bg_card};padding:3px 2px;cursor:pointer;">
-<div style="width:38px;height:38px;border-radius:6px;background:{bg_g};color:{tc_g};display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:900;margin-bottom:2px">{hj_g}</div>
-<div style="width:38px;height:38px;border-radius:6px;background:{bg_j};color:{tc_j};display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:900;margin-bottom:2px">{hj_j}</div>
-<div style="font-size:9px;color:#b0a888">{sipsin(ilgan,g)}/{sipsin_ji(ilgan,j)}</div>
-</div>''', unsafe_allow_html=True)
-            if st.button(f'{age}', key=f'du_{real_idx}', use_container_width=True):
-                st.session_state.sel_daeun = real_idx
-                # 해당 대운의 첫 년도로 세운 업데이트
-                new_seun_start = y + age - 10
-                st.session_state.saju_data['seun'] = calc_seun(max(new_seun_start, y), 20)
-                st.session_state.saju_data['seun_year'] = new_seun_start
-                st.session_state.sel_seun = 0
+            clicked=render_daeun_card(age,g,j,ilgan,real_idx==sel_du,f'du_{real_idx}')
+            if clicked:
+                st.session_state.sel_daeun=real_idx
+                new_ss=max(data['birth'][0]+age-5,data['birth'][0])
+                new_seun=[]
+                for i in range(20):
+                    sy=new_ss+i; off=(sy-4)%60
+                    new_seun.append((sy,CHEONGAN[off%10],JIJI[off%12]))
+                st.session_state.saju_data['seun']=new_seun
+                st.session_state.sel_seun=0
                 st.rerun()
-    # 세운 - 오른쪽에서 왼쪽
-    sel_su = st.session_state.sel_seun or 0
-    seun = data['seun']
-    st.markdown('<div class="sec-title">📅 세운(歲運)</div>', unsafe_allow_html=True)
-    seun_rev = list(reversed(seun))
-    du_age, du_g, du_j = daeun[sel_du]
-    st.markdown(f'<div class="sel-info">선택 대운: {du_age}세 {HANJA_GAN[get_gan_idx(du_g)]}{HANJA_JI[get_ji_idx(du_j)]} ({sipsin(ilgan,du_g)}/{sipsin_ji(ilgan,du_j)})</div>', unsafe_allow_html=True)
-    n_seun = len(seun)
-    cols_su = st.columns(min(n_seun, 10))
-    # 최대 10개씩 표시
-    display_seun = seun_rev[:10]
-    rev_sel_su = len(seun) - 1 - sel_su
-    for ci, col in enumerate(st.columns(len(display_seun))):
-        if ci >= len(display_seun): break
-        real_idx = len(seun) - 1 - ci
-        sy, sg, sj = display_seun[ci]
+    # 세운 (오른쪽에서 왼쪽, 최대 10개씩)
+    sel_su=st.session_state.sel_seun
+    seun=data['seun']
+    du_item=daeun[sel_du]
+    du_g=CHEONGAN[du_item['g_idx']]; du_j=MONTH_JI[du_item['b_idx']]
+    st.markdown(f'<div class="sec-title">📅 세운(歲運)</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="sel-info">선택 대운: {du_item["start_age"]}세 {hanja_gan(du_g)}{hanja_ji(du_j)} ({six_for_stem(ilgan,du_g)}/{six_for_branch(ilgan,du_j)})</div>', unsafe_allow_html=True)
+    n_show=min(len(seun),10)
+    seun_show=list(reversed(seun[:n_show]))
+    cols_su=st.columns(n_show)
+    for ci,col in enumerate(cols_su):
+        real_idx=n_show-1-ci
+        sy,sg,sj=seun_show[ci]
         with col:
-            active = (real_idx == sel_su)
-            bg_g = COLOR_MAP[ohaeng_gan(sg)]; tc_g = TEXT_COLOR[ohaeng_gan(sg)]
-            bg_j = COLOR_MAP[ohaeng_ji(sj)]; tc_j = TEXT_COLOR[ohaeng_ji(sj)]
-            hj_g = HANJA_GAN[get_gan_idx(sg)]; hj_j = HANJA_JI[get_ji_idx(sj)]
-            border = '2px solid #a0945e' if active else '1px solid #4a5580'
-            bg_card = '#4a5580' if active else '#3a4565'
+            active=(real_idx==sel_su)
+            bg_g=GAN_BG.get(sg,'#888'); tc_g=gan_fg(sg)
+            bg_j=BR_BG.get(sj,'#888'); tc_j=br_fg(sj)
+            hj_sg=hanja_gan(sg); hj_sj=hanja_ji(sj)
+            bdr='2px solid #a0945e' if active else '1px solid #4a5580'
+            bg_card='#4a5580' if active else '#3a4565'
+            ss=f'{six_for_stem(ilgan,sg)}/{six_for_branch(ilgan,sj)}'
             st.markdown(f'''<div style="text-align:center;font-size:10px;color:#b0a888;margin-bottom:2px">{sy}</div>
-<div style="display:flex;flex-direction:column;align-items:center;border:{border};border-radius:10px;background:{bg_card};padding:3px 2px;">
-<div style="width:34px;height:34px;border-radius:6px;background:{bg_g};color:{tc_g};display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;margin-bottom:2px">{hj_g}</div>
-<div style="width:34px;height:34px;border-radius:6px;background:{bg_j};color:{tc_j};display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;margin-bottom:2px">{hj_j}</div>
-<div style="font-size:9px;color:#b0a888">{sipsin(ilgan,sg)}/{sipsin_ji(ilgan,sj)}</div>
+<div style="display:flex;flex-direction:column;align-items:center;border:{bdr};border-radius:10px;background:{bg_card};padding:3px 2px;">
+<div style="width:34px;height:34px;border-radius:6px;background:{bg_g};color:{tc_g};display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;margin-bottom:2px">{hj_sg}</div>
+<div style="width:34px;height:34px;border-radius:6px;background:{bg_j};color:{tc_j};display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;margin-bottom:2px">{hj_sj}</div>
+<div style="font-size:9px;color:#b0a888">{ss}</div>
 </div>''', unsafe_allow_html=True)
-            if st.button(f"'{str(sy)[2:]}'", key=f'su_{real_idx}', use_container_width=True):
-                st.session_state.sel_seun = real_idx
-                st.session_state.sel_wolun = 0
-                st.session_state.page = 'wolun'
+            if st.button(f"'{str(sy)[2:]}", key=f'su_{real_idx}', use_container_width=True):
+                st.session_state.sel_seun=real_idx
+                st.session_state.sel_wolun=0
+                st.session_state.page='wolun'
                 st.rerun()
+    # AI 상담 버튼
+    gpt_url='https://chatgpt.com/g/g-68d90b2d8f448191b87fb7511fa8f80a-rua-myeongrisajusangdamsa'
+    st.markdown(f'<a href="{gpt_url}" target="_blank" class="ai-btn">🧩 AI 명리 무료상담 클릭 👈</a>', unsafe_allow_html=True)
 def page_wolun():
-    data = st.session_state.saju_data
+    data=st.session_state.saju_data
     if not data: st.session_state.page='input'; st.rerun(); return
-    saju = data['saju']
-    ilgan = saju[2][0]
-    seun = data['seun']
-    sel_su = st.session_state.sel_seun or 0
-    sy, sg, sj = seun[sel_su]
-    if st.button('← 사주로'):
-        st.session_state.page = 'saju'; st.rerun()
-    hj_g = HANJA_GAN[get_gan_idx(sg)]; hj_j = HANJA_JI[get_ji_idx(sj)]
-    st.markdown(f'<div class="sel-info">{sy}년 {hj_g}{hj_j} 월운 ({sipsin(ilgan,sg)}/{sipsin_ji(ilgan,sj)})</div>', unsafe_allow_html=True)
-    wolun = list(reversed(calc_wolun(sy)))
-    sel_wu = st.session_state.sel_wolun or 0
-    n = len(wolun)
-    MONTH_KR = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월']
-    for row_start in range(0, n, 6):
-        row_items = wolun[row_start:row_start+6]
-        cols = st.columns(len(row_items))
-        for ci, col in enumerate(cols):
-            real_i = row_start + ci
-            real_month_idx = n - 1 - real_i
-            wm, wg, wj = row_items[ci]
+    now=datetime.now(LOCAL_TZ)
+    ilgan=data['ilgan']
+    seun=data['seun']
+    sel_su=st.session_state.sel_seun
+    sy,sg,sj=seun[sel_su]
+    if st.button('← 사주로'): st.session_state.page='saju'; st.rerun()
+    hj_sg=hanja_gan(sg); hj_sj=hanja_ji(sj)
+    st.markdown(f'<div class="sel-info">{sy}년 {hj_sg}{hj_sj} 월운 ({six_for_stem(ilgan,sg)}/{six_for_branch(ilgan,sj)})</div>', unsafe_allow_html=True)
+    # 정확한 황경 기반 월운 계산
+    wolun=calc_wolun_accurate(sy)
+    sel_wu=st.session_state.sel_wolun
+    wolun_rev=list(reversed(wolun))
+    MONTH_KR=['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월']
+    for row_start in range(0,12,6):
+        row_items=wolun_rev[row_start:row_start+6]
+        cols=st.columns(len(row_items))
+        for ci,col in enumerate(cols):
+            if ci>=len(row_items): break
+            real_idx_in_rev=row_start+ci
+            real_wu=11-real_idx_in_rev
+            wm=row_items[ci]['month']
+            wg=row_items[ci]['gan']; wj=row_items[ci]['ji']
             with col:
-                active = (real_month_idx == sel_wu)
-                bg_g = COLOR_MAP[ohaeng_gan(wg)]; tc_g = TEXT_COLOR[ohaeng_gan(wg)]
-                bg_j = COLOR_MAP[ohaeng_ji(wj)]; tc_j = TEXT_COLOR[ohaeng_ji(wj)]
-                hj_g = HANJA_GAN[get_gan_idx(wg)]; hj_j = HANJA_JI[get_ji_idx(wj)]
-                border = '2px solid #a0945e' if active else '1px solid #4a5580'
-                bg_card = '#4a5580' if active else '#3a4565'
+                active=(real_wu==sel_wu)
+                bg_g=GAN_BG.get(wg,'#888'); tc_g=gan_fg(wg)
+                bg_j=BR_BG.get(wj,'#888'); tc_j=br_fg(wj)
+                hj_wg=hanja_gan(wg); hj_wj=hanja_ji(wj)
+                bdr='2px solid #a0945e' if active else '1px solid #4a5580'
+                bg_card='#4a5580' if active else '#3a4565'
+                ss=f'{six_for_stem(ilgan,wg)}/{six_for_branch(ilgan,wj)}'
                 st.markdown(f'''<div style="text-align:center;font-size:10px;color:#b0a888;margin-bottom:2px">{MONTH_KR[wm-1]}</div>
-<div style="display:flex;flex-direction:column;align-items:center;border:{border};border-radius:10px;background:{bg_card};padding:3px 2px;">
-<div style="width:38px;height:38px;border-radius:6px;background:{bg_g};color:{tc_g};display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:900;margin-bottom:2px">{hj_g}</div>
-<div style="width:38px;height:38px;border-radius:6px;background:{bg_j};color:{tc_j};display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:900;margin-bottom:2px">{hj_j}</div>
-<div style="font-size:9px;color:#b0a888">{sipsin(ilgan,wg)}/{sipsin_ji(ilgan,wj)}</div>
+<div style="display:flex;flex-direction:column;align-items:center;border:{bdr};border-radius:10px;background:{bg_card};padding:3px 2px;">
+<div style="width:38px;height:38px;border-radius:6px;background:{bg_g};color:{tc_g};display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:900;margin-bottom:2px">{hj_wg}</div>
+<div style="width:38px;height:38px;border-radius:6px;background:{bg_j};color:{tc_j};display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:900;margin-bottom:2px">{hj_wj}</div>
+<div style="font-size:9px;color:#b0a888">{ss}</div>
 </div>''', unsafe_allow_html=True)
-                if st.button(f'{wm}월', key=f'wu_{real_i}', use_container_width=True):
-                    st.session_state.sel_wolun = real_month_idx
-                    st.session_state.page = 'ilun'
+                if st.button(f'{wm}월',key=f'wu_{real_wu}',use_container_width=True):
+                    st.session_state.sel_wolun=real_wu
+                    st.session_state.page='ilun'
                     st.rerun()
+    gpt_url='https://chatgpt.com/g/g-68d90b2d8f448191b87fb7511fa8f80a-rua-myeongrisajusangdamsa'
+    st.markdown(f'<a href="{gpt_url}" target="_blank" class="ai-btn">🧩 AI 명리 무료상담 클릭 👈</a>', unsafe_allow_html=True)
+
 def page_ilun():
-    data = st.session_state.saju_data
+    data=st.session_state.saju_data
     if not data: st.session_state.page='input'; st.rerun(); return
-    saju = data['saju']
-    ilgan = saju[2][0]
-    seun = data['seun']
-    sel_su = st.session_state.sel_seun or 0
-    sy, sg, sj = seun[sel_su]
-    sel_wu = st.session_state.sel_wolun or 0
-    wolun = calc_wolun(sy)
-    wm, wg, wj = wolun[sel_wu]
-    if st.button('← 월운으로'):
-        st.session_state.page = 'wolun'; st.rerun()
-    hj_g = HANJA_GAN[get_gan_idx(wg)]; hj_j = HANJA_JI[get_ji_idx(wj)]
-    st.markdown(f'<div class="sel-info">{sy}년 {wm}월 ({hj_g}{hj_j}) 일운</div>', unsafe_allow_html=True)
-    ilun = calc_ilun(sy, wm)
-    now = datetime.now(LOCAL_TZ)
-    # 달력 HTML 생성
-    import calendar as cal_mod
-    first_weekday, _ = cal_mod.monthrange(sy, wm)
-    # 0=월요일, 6=일요일 -> 일요일 시작으로 변환
-    first_wd = (first_weekday + 1) % 7  # 0=일,1=월,...,6=토
-    html = '<div class="cal-wrap">'
-    hj_yg = HANJA_GAN[get_gan_idx(sg)]; hj_yj = HANJA_JI[get_ji_idx(sj)]
-    html += f'<div class="cal-header">{sy}년({hj_yg}{hj_yj}) {wm}월({hj_g}{hj_j})</div>'
-    html += '<table class="cal-table"><thead><tr>'
-    for dname in ['일','월','화','수','목','금','토']:
-        html += f'<th>{dname}</th>'
-    html += '</tr></thead><tbody><tr>'
-    # 빈칸
-    for _ in range(first_wd):
-        html += '<td class="empty"></td>'
-    col_pos = first_wd
-    for d_num, dg, dj in ilun:
-        if col_pos == 7:
-            html += '</tr><tr>'
-            col_pos = 0
-        dow = (first_wd + d_num - 1) % 7  # 0=일, 6=토
-        is_today = (sy == now.year and wm == now.month and d_num == now.day)
-        cls = 'today-cell' if is_today else ''
-        if dow == 0: cls += ' sun'
-        elif dow == 6: cls += ' sat'
-        hj_dg = HANJA_GAN[get_gan_idx(dg)]; hj_dj = HANJA_JI[get_ji_idx(dj)]
-        html += f'<td class="{cls.strip()}"><div class="dn">{d_num}</div><div class="day-gan">{hj_dg}</div><div class="day-ji">{hj_dj}</div></td>'
-        col_pos += 1
-    while col_pos < 7 and col_pos > 0:
-        html += '<td class="empty"></td>'
-        col_pos += 1
-    html += '</tr></tbody></table></div>'
-    st.markdown(html, unsafe_allow_html=True)
+    now=datetime.now(LOCAL_TZ)
+    ilgan=data['ilgan']
+    seun=data['seun']
+    sel_su=st.session_state.sel_seun
+    sy,sg,sj=seun[sel_su]
+    sel_wu=st.session_state.sel_wolun
+    wolun=calc_wolun_accurate(sy)
+    wm_data=wolun[sel_wu]
+    wm=wm_data['month']; wg=wm_data['gan']; wj=wm_data['ji']
+    if st.button('← 월운으로'): st.session_state.page='wolun'; st.rerun()
+    hj_wg=hanja_gan(wg); hj_wj=hanja_ji(wj)
+    hj_sg=hanja_gan(sg); hj_sj=hanja_ji(sj)
+    st.markdown(f'<div class="sel-info">{sy}년 {wm}월 ({hj_wg}{hj_wj}) 일운</div>', unsafe_allow_html=True)
+    # 정확한 일운 계산 (황경 기반 일주 계산)
+    t1=wm_data.get('t1'); t_end=wm_data.get('t_end')
+    if t1 is None or t_end is None:
+        _,days=cal_mod.monthrange(sy,wm)
+        t1=datetime(sy,wm,1,0,0,tzinfo=LOCAL_TZ)
+        t_end=datetime(sy,wm,days,23,59,tzinfo=LOCAL_TZ)
+    ilun=calc_ilun_strip(t1,t_end,ilgan)
+    # 달력 HTML
+    first_weekday,_=cal_mod.monthrange(sy,wm)
+    first_wd=(first_weekday+1)%7
+    html='<div class="cal-wrap">'
+    html+=f'<div class="cal-header">{sy}년({hj_sg}{hj_sj}) {wm}월({hj_wg}{hj_wj})</div>'
+    html+='<table class="cal-table"><thead><tr>'
+    for dn in ['일','월','화','수','목','금','토']: html+=f'<th>{dn}</th>'
+    html+='</tr></thead><tbody><tr>'
+    for _ in range(first_wd): html+='<td class="empty"></td>'
+    col_pos=first_wd
+    for item in ilun:
+        if col_pos==7: html+='</tr><tr>'; col_pos=0
+        d_num=item['date'].day
+        dow=(first_wd+d_num-1)%7
+        is_today=(sy==now.year and wm==now.month and d_num==now.day)
+        cls='today-cell' if is_today else ''
+        if dow==0: cls+=' sun'
+        elif dow==6: cls+=' sat'
+        hj_dg=hanja_gan(item['gan']); hj_dj=hanja_ji(item['ji'])
+        html+=f'<td class="{cls.strip()}"><div class="dn">{d_num}</div><div>{hj_dg}</div><div>{hj_dj}</div></td>'
+        col_pos+=1
+    while col_pos%7!=0 and col_pos>0: html+='<td class="empty"></td>'; col_pos+=1
+    html+='</tr></tbody></table></div>'
+    st.markdown(html,unsafe_allow_html=True)
+    gpt_url='https://chatgpt.com/g/g-68d90b2d8f448191b87fb7511fa8f80a-rua-myeongrisajusangdamsa'
+    st.markdown(f'<a href="{gpt_url}" target="_blank" class="ai-btn">🧩 AI 명리 무료상담 클릭 👈</a>', unsafe_allow_html=True)
 
-
-if __name__ == '__main__':
+if __name__=='__main__':
     main()
