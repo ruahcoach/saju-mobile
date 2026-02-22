@@ -814,9 +814,7 @@ def lunar_to_solar(y: int, m: int, d: int, is_leap: bool) -> date:
 st.set_page_config(page_title="이박사 향기품 만세력", layout="centered", page_icon="🔮")
 
 # ========== 모바일 최적화 CSS ==========
-st.markdown("""
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<style>
+st.markdown("""<style>
 /* ===== 글로벌 리셋 & 모바일 기본 ===== */
 :root {
   --primary: #4A90D9;
@@ -851,7 +849,9 @@ section[data-testid="stSidebar"] { display: none !important; }
 }
 .app-header h1 { font-size: 22px; font-weight: 800; margin: 0; letter-spacing: -0.5px; }
 .app-header .sub { font-size: 12px; opacity: 0.85; margin-top: 4px; }
+</style>""", unsafe_allow_html=True)
 
+st.markdown("""<style>
 /* ===== 카드 스타일 ===== */
 .m-card {
   background: var(--bg-card);
@@ -939,7 +939,9 @@ section[data-testid="stSidebar"] { display: none !important; }
   margin-top: 4px;
   line-height: 1.4;
 }
+</style>""", unsafe_allow_html=True)
 
+st.markdown("""<style>
 /* ===== 가로 스크롤 스트립 ===== */
 .strip-outer {
   width: 100%;
@@ -981,7 +983,9 @@ section[data-testid="stSidebar"] { display: none !important; }
   border: 1px solid rgba(0,0,0,0.1);
 }
 .un-card .six { font-size: 9px; color: var(--text-sub); margin-top: 3px; white-space: nowrap; }
+</style>""", unsafe_allow_html=True)
 
+st.markdown("""<style>
 /* ===== 절기 캡션 ===== */
 .term-caption {
   font-size: 11px;
