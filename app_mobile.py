@@ -242,7 +242,7 @@ def dayun_start_age(dt_solar, jie12_solar, forward):
     delta_days=(next_t-dt_solar).total_seconds()/86400.0 if forward else (dt_solar-prev_t).total_seconds()/86400.0
     return max(0,round_half_up(delta_days/3.0))
 
-def build_dayun_list(month_gidx, month_bidx, forward, start_age, count=13):
+def build_dayun_list(month_gidx, month_bidx, forward, start_age, count=8):
     dirv=1 if forward else -1
     out=[]
     for i in range(1,count+1):
@@ -610,7 +610,6 @@ def page_saju():
     t1=data['t1']; t2=data['t2']
     sel_du=st.session_state.sel_daeun
     sel_su=st.session_state.sel_seun
-    birth_year=data['birth'][0]
     if st.button('← 입력으로'): st.session_state.page='input'; st.rerun()
     # 오늘 일진 (황경 기반)
     now_solar=to_solar_time(now)
@@ -638,7 +637,6 @@ def page_saju():
     <div class="geok-why" style="margin-top:4px;">{month_ji}월 司令 ({term1_name} 절입 +{day_from}일) · 대운 {du_age}세 {du_dir}</div>
     </div>''', unsafe_allow_html=True)
     # 대운 (오른쪽->왼쪽, 스크롤, 클릭시 월운으로 이동)
-    st.markdown('<div class="sec-title">🎴 대운 (클릭 → 월운)</div>', unsafe_allow_html=True)
     daeun_rev=list(reversed(daeun))
     cols_du=st.columns(len(daeun))
     for ci,col in enumerate(cols_du):
@@ -647,7 +645,6 @@ def page_saju():
         age=item['start_age']
         g=CHEONGAN[item['g_idx']]; j=MONTH_JI[item['b_idx']]
         with col:
-            dy_year=birth_year+age
             clicked=render_daeun_card(age,g,j,ilgan,real_idx==sel_du,f"du_{real_idx}",dy_year)
             if clicked:
                 st.session_state.sel_daeun=real_idx
@@ -665,8 +662,6 @@ def page_saju():
     seun=data["seun"]
     du_item=daeun[sel_du]
     du_g=CHEONGAN[du_item["g_idx"]]; du_j=MONTH_JI[du_item["b_idx"]]
-    st.markdown(f'<div class="sec-title">📅 세운(歲運) — 클릭 → 월운</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="sel-info">선택 대운: {du_item["start_age"]}세 {hanja_gan(du_g)}{hanja_ji(du_j)} ({six_for_stem(ilgan,du_g)}/{six_for_branch(ilgan,du_j)})</div>', unsafe_allow_html=True)
     n_show=min(len(seun),10)
     seun_show=list(reversed(seun[:n_show]))
     cols_su=st.columns(n_show)
@@ -689,8 +684,7 @@ def page_saju():
             <div style="width:30px;height:30px;border-radius:5px;background:{bg_j};color:{tc_j};display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;margin-bottom:1px">{hj_sj}</div>
             <div style="font-size:9px;color:#5a3e0a;white-space:nowrap">{six_j}</div>
             </div>''', unsafe_allow_html=True)
-            su_age=sy-birth_year
-            if st.button(f'{su_age}세', key=f'su_{real_idx}', use_container_width=True):
+            if st.button(f"'{str(sy)[2:]}", key=f'su_{real_idx}', use_container_width=True):
                 st.session_state.sel_seun=real_idx
                 st.session_state.sel_wolun=0
                 st.session_state.page='wolun'
