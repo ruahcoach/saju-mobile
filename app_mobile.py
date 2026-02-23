@@ -386,9 +386,19 @@ def get_saryeong_gan(month_branch, day_from_jieqi):
     else:
         return sr["late_15"], "후반15일"
 
-def get_dangryeong(month_branch):
+def get_dangryeong(month_branch, dt_solar=None, jie24_solar=None):
+    boundary_jie = {'오':'하지','뮳':'춤분','유':'추분','자':'동지','해':'입동'}
+    if month_branch in boundary_jie and dt_solar and jie24_solar:
+        jie_name = boundary_jie[month_branch]
+        jie_dt = jie24_solar.get(jie_name)
+        if jie_dt:
+            matched = [item for item in DANGRYEONG if month_branch in item['months']]
+            if len(matched) >= 2:
+                return matched[1] if dt_solar >= jie_dt else matched[0]
+            elif matched:
+                return matched[0]
     for item in DANGRYEONG:
-        if month_branch in item["months"]:
+        if month_branch in item['months']:
             return item
     return None
 
@@ -629,6 +639,7 @@ def page_input():
                 'seun':seun,'seun_start':seun_start,'geok':geok,'why':why,
                 't1':t1,'t2':t2,'day_from_jieqi':day_from_jieqi,
                 'ilgan':ilgan,'start_age':start_age,'forward':forward,
+                'jie24_solar':jie24_solar,
             }
             st.session_state.sel_daeun=sel_du
             st.session_state.sel_seun=sel_su
@@ -672,7 +683,8 @@ def page_saju():
 
     saryeong_gan, saryeong_period = get_saryeong_gan(month_ji, day_from)
     saryeong_six = ten_god_for_stem(ilgan, saryeong_gan) if saryeong_gan else ''
-    dangryeong_item = get_dangryeong(month_ji)
+    _jie24_s = data.get('jie24_solar') or {}
+    dangryeong_item = get_dangryeong(month_ji, data['dt_solar'], _jie24_s)
     prev_jeolip, next_jeolip = get_nearby_jeolip(data['dt_solar'])
     prev_str = f"{prev_jeolip[0]} {prev_jeolip[1].strftime('%Y.%m.%d %H:%M:%S')}" if prev_jeolip else '-'
     next_str = f"{next_jeolip[0]} {next_jeolip[1].strftime('%Y.%m.%d %H:%M:%S')}" if next_jeolip else '-'
