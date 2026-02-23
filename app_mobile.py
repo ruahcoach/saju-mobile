@@ -22,7 +22,7 @@ def get_kasi_key():
     return os.getenv('KASI_KEY')
 
 LOCAL_TZ = ZoneInfo('Asia/Seoul')
-BASE_MIN = 507  # Seoul longitude 126.9778 deg (UTC+8h 27m)
+BASE_MIN = 540  # KST = UTC+9:00 = 540min (절기 시각을 KST 그대로 표시)
 
 def to_solar_time(dt_local):
     off = dt_local.utcoffset()
