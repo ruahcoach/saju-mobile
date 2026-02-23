@@ -31,15 +31,6 @@ def to_solar_time(dt_local):
     delta = off_min - BASE_MIN
     return dt_local - timedelta(minutes=delta)
 
-KR_CITY_LON = {'서울':127.0,'가평':127.5,'대전':127.5,'부산':129.0,'대구':128.5,'제주':126.5,'인천':126.5,'울산':128.5,'광주':127.0,'울릉도':130.9}
-BASE_MERIDIAN = 127.5
-DEG2MIN = 4.0
-
-def apply_longitude_correction(dt_solar, city_lon):
-    if city_lon is None: return dt_solar
-    delta_min = (BASE_MERIDIAN - float(city_lon)) * DEG2MIN
-    return dt_solar + timedelta(minutes=delta_min)
-
 CHEONGAN = ['갑','을','병','정','무','기','경','신','임','계']
 JIJI = ['자','축','인','묘','진','사','오','미','신','유','술','해']
 HANJA_GAN = ['甲','乙','丙','丁','戊','己','庚','辛','壬','癸']
@@ -60,7 +51,6 @@ ELEM_OVER_ME = {v:k for k,v in ELEM_CONTROL.items()}
 ELEM_PROD_ME = {v:k for k,v in ELEM_PRODUCE.items()}
 SAMHAP = {'화':{'인','오','술'},'목':{'해','묘','미'},'수':{'신','자','진'},'금':{'사','유','축'}}
 MONTH_SAMHAP = {'인':'화','오':'화','술':'화','해':'목','묘':'목','미':'목','신':'수','자':'수','진':'수','사':'금','유':'금','축':'금'}
-INSHINSAHAE = {'인','신','사','해'}
 BRANCH_HIDDEN = {'자':['임','계'],'축':['계','신','기'],'인':['무','병','갑'],'묘':['갑','을'],'진':['을','계','무'],'사':['무','경','병'],'오':['병','기','정'],'미':['정','을','기'],'신':['무','임','경'],'유':['경','신'],'술':['신','정','무'],'해':['무','갑','임']}
 NOTEARTH = {'갑','을','병','정','경','신','임','계'}
 def stems_of_element(elem): return {'목':['갑','을'],'화':['병','정'],'토':['무','기'],'금':['경','신'],'수':['임','계']}[elem]
@@ -82,17 +72,12 @@ def all_hidden_stems(branches):
     s=set()
     for b in branches: s.update(BRANCH_HIDDEN.get(b,[]))
     return s
-def picknon_earth_from(h, start_idx):
-    for i in range(start_idx, len(h)):
-        if h[i] in NOTEARTH: return h[i]
-    return None
 def is_first_half_by_terms(dt_solar, first_term_dt, mid_term_dt): return first_term_dt <= dt_solar < mid_term_dt
 
 JIE_DEGREES = {'입춘':315,'경칩':345,'청명':15,'입하':45,'망종':75,'소서':105,'입추':135,'백로':165,'한로':195,'입동':225,'대설':255,'소한':285}
 JIE_ORDER = ['입춘','경칩','청명','입하','망종','소서','입추','백로','한로','입동','대설','소한']
 JIE24_DEGREES = {'입춘':315,'우수':330,'경칩':345,'춘분':0,'청명':15,'곡우':30,'입하':45,'소만':60,'망종':75,'하지':90,'소서':105,'대서':120,'입추':135,'처서':150,'백로':165,'추분':180,'한로':195,'상강':210,'입동':225,'소설':240,'대설':255,'동지':270,'소한':285,'대한':300}
 JIE24_ORDER = ['입춘','우수','경칩','춘분','청명','곡우','입하','소만','망종','하지','소서','대서','입추','처서','백로','추분','한로','상강','입동','소설','대설','동지','소한','대한']
-
 SIDU_START = {('갑','기'):'갑',('을','경'):'병',('병','신'):'무',('정','임'):'경',('무','계'):'임'}
 def month_start_gan_idx(year_gan_idx): return ((year_gan_idx % 5) * 2 + 2) % 10
 K_ANCHOR = 49
@@ -101,24 +86,24 @@ def jdn_0h_utc(y,m,d):
     if m<=2: y-=1; m+=12
     A=y//100; B=2-A+A//4
     return int(365.25*(y+4716))+int(30.6001*(m+1))+d+B-1524
+
 def jd_from_utc(dt_utc):
     y=dt_utc.year; m=dt_utc.month
     d=dt_utc.day+(dt_utc.hour+dt_utc.minute/60+dt_utc.second/3600)/24
     if m<=2: y-=1; m+=12
     A=y//100; B=2-A+A//4
     return int(365.25*(y+4716))+int(30.6001*(m+1))+d+B-1524.5
+
 def norm360(x): return x%360.0
 def wrap180(x): return (x+180.0)%360.0-180.0
+
 def solar_longitude_deg(dt_utc):
     JD=jd_from_utc(dt_utc); T=(JD-2451545.0)/36525.0
     L0=norm360(280.46646+36000.76983*T+0.0003032*T*T)
     M=norm360(357.52911+35999.05029*T-0.0001537*T*T)
     Mr=math.radians(M)
-    C=((1.914602-0.004817*T-0.000014*T*T)*math.sin(Mr)
-       +(0.019993-0.000101*T)*math.sin(2*Mr)
-       +0.000289*math.sin(3*Mr))
-    theta=L0+C
-    Omega=125.04-1934.136*T
+    C=((1.914602-0.004817*T-0.000014*T*T)*math.sin(Mr)+(0.019993-0.000101*T)*math.sin(2*Mr)+0.000289*math.sin(3*Mr))
+    theta=L0+C; Omega=125.04-1934.136*T
     lam=theta-0.00569-0.00478*math.sin(math.radians(Omega))
     return norm360(lam)
 
@@ -145,35 +130,26 @@ def find_longitude_time_local(year, target_deg, approx_dt_local):
 def approx_guess_local(year):
     rough={'입춘':(2,4),'경칩':(3,6),'청명':(4,5),'입하':(5,6),'망종':(6,6),'소서':(7,7),'입추':(8,8),'백로':(9,8),'한로':(10,8),'입동':(11,7),'대설':(12,7),'소한':(1,6)}
     out={}
-    for name,(m,d) in rough.items():
-        out[name]=datetime(year,m,d,9,0,tzinfo=LOCAL_TZ)
+    for name,(m,d) in rough.items(): out[name]=datetime(year,m,d,9,0,tzinfo=LOCAL_TZ)
     out['(전년)대설']=datetime(year-1,12,7,9,0,tzinfo=LOCAL_TZ)
     return out
 
 def approx_guess_local_24(year):
-    rough={'입춘':(2,4),'우수':(2,19),'경칩':(3,6),'춘분':(3,21),'청명':(4,5),'곡우':(4,20),
-           '입하':(5,6),'소만':(5,21),'망종':(6,6),'하지':(6,21),'소서':(7,7),'대서':(7,23),
-           '입추':(8,8),'처서':(8,23),'백로':(9,8),'추분':(9,23),'한로':(10,8),'상강':(10,23),
-           '입동':(11,7),'소설':(11,22),'대설':(12,7),'동지':(12,22),'소한':(1,6),'대한':(1,20)}
+    rough={'입춘':(2,4),'우수':(2,19),'경칩':(3,6),'춘분':(3,21),'청명':(4,5),'곡우':(4,20),'입하':(5,6),'소만':(5,21),'망종':(6,6),'하지':(6,21),'소서':(7,7),'대서':(7,23),'입추':(8,8),'처서':(8,23),'백로':(9,8),'추분':(9,23),'한로':(10,8),'상강':(10,23),'입동':(11,7),'소설':(11,22),'대설':(12,7),'동지':(12,22),'소한':(1,6),'대한':(1,20)}
     out={}
-    for name,(m,d) in rough.items():
-        out[name]=datetime(year,m,d,9,0,tzinfo=LOCAL_TZ)
+    for name,(m,d) in rough.items(): out[name]=datetime(year,m,d,9,0,tzinfo=LOCAL_TZ)
     return out
 
 def compute_jie_times_calc(year):
     guesses=approx_guess_local(year); terms={}
-    for name in JIE_ORDER:
-        terms[name]=find_longitude_time_local(year,JIE_DEGREES[name],guesses[name])
+    for name in JIE_ORDER: terms[name]=find_longitude_time_local(year,JIE_DEGREES[name],guesses[name])
     terms['(전년)대설']=find_longitude_time_local(year-1,JIE_DEGREES['대설'],guesses['(전년)대설'])
     return terms
 
 def compute_jie24_times_calc(year):
     guesses=approx_guess_local_24(year); out={}
     for name in JIE24_ORDER:
-        deg=JIE24_DEGREES[name]
-        approx=guesses[name]
-        # 소한/대한은 해당 year의 1월(양력)로 계산
-        calc_year=approx.year
+        deg=JIE24_DEGREES[name]; approx=guesses[name]; calc_year=approx.year
         out[name]=find_longitude_time_local(calc_year,deg,approx)
     return out
 
@@ -181,15 +157,11 @@ def pillar_day_by_2300(dt_solar):
     return (dt_solar+timedelta(days=1)).date() if (dt_solar.hour,dt_solar.minute)>=(23,0) else dt_solar.date()
 
 def day_ganji_solar(dt_solar, k_anchor=K_ANCHOR):
-    d=pillar_day_by_2300(dt_solar)
-    idx60=(jdn_0h_utc(d.year,d.month,d.day)+k_anchor)%60
-    cidx,jidx=idx60%10,idx60%12
-    return CHEONGAN[cidx]+JIJI[jidx],cidx,jidx
+    d=pillar_day_by_2300(dt_solar); idx60=(jdn_0h_utc(d.year,d.month,d.day)+k_anchor)%60
+    cidx,jidx=idx60%10,idx60%12; return CHEONGAN[cidx]+JIJI[jidx],cidx,jidx
 
 def hour_branch_idx_2300(dt_solar):
-    mins=dt_solar.hour*60+dt_solar.minute
-    off=(mins-(23*60))%1440
-    return off//120
+    mins=dt_solar.hour*60+dt_solar.minute; off=(mins-(23*60))%1440; return off//120
 
 def sidu_zi_start_gan(day_gan):
     for pair,start in SIDU_START.items():
@@ -197,38 +169,29 @@ def sidu_zi_start_gan(day_gan):
     raise ValueError('invalid day gan')
 
 def four_pillars_from_solar(dt_solar, k_anchor=K_ANCHOR):
-    # 12절기 계산 (황경 기반)
     jie12=compute_jie_times_calc(dt_solar.year)
-    # 모든 절기를 태양시로 변환
     jie_solar={name:to_solar_time(t) for name,t in jie12.items()}
     ipchun=jie_solar.get("입춘")
-    # 입춘 기준 년주 결정
     y=dt_solar.year-1 if dt_solar<ipchun else dt_solar.year
     y_gidx=(y-4)%10; y_jidx=(y-4)%12
     year_pillar=CHEONGAN[y_gidx]+JIJI[y_jidx]
-    # 절기 순서 정렬하여 월주 결정
     order=list(jie_solar.items()); order.sort(key=lambda x:x[1])
     last='(전년)대설'
     for name,t in order:
         if dt_solar>=t: last=name
         else: break
-    m_branch=JIE_TO_MONTH_JI[last]
-    m_bidx=MONTH_JI.index(m_branch)
+    m_branch=JIE_TO_MONTH_JI[last]; m_bidx=MONTH_JI.index(m_branch)
     m_gidx=(month_start_gan_idx(y_gidx)+m_bidx)%10
     month_pillar=CHEONGAN[m_gidx]+m_branch
-    # 일주 (K앵커=49 기반)
     day_pillar,d_cidx,d_jidx=day_ganji_solar(dt_solar,k_anchor)
-    # 시주 (시두법)
     h_j_idx=hour_branch_idx_2300(dt_solar)
     zi_start=sidu_zi_start_gan(CHEONGAN[d_cidx])
     h_c_idx=(CHEONGAN.index(zi_start)+h_j_idx)%10
     hour_pillar=CHEONGAN[h_c_idx]+JIJI[h_j_idx]
-    return {'year':year_pillar,'month':month_pillar,'day':day_pillar,'hour':hour_pillar,
-            'y_gidx':y_gidx,'m_gidx':m_gidx,'m_bidx':m_bidx,'d_cidx':d_cidx}
+    return {'year':year_pillar,'month':month_pillar,'day':day_pillar,'hour':hour_pillar,'y_gidx':y_gidx,'m_gidx':m_gidx,'m_bidx':m_bidx,'d_cidx':d_cidx}
 
 def next_prev_jie(dt_solar, jie_solar_dict):
-    items=[(n,t) for n,t in jie_solar_dict.items()]
-    items.sort(key=lambda x:x[1])
+    items=[(n,t) for n,t in jie_solar_dict.items()]; items.sort(key=lambda x:x[1])
     prev_t=items[0][1]
     for _,t in items:
         if t>dt_solar: return prev_t,t
@@ -243,11 +206,9 @@ def dayun_start_age(dt_solar, jie12_solar, forward):
     return max(0,round_half_up(delta_days/3.0))
 
 def build_dayun_list(month_gidx, month_bidx, forward, start_age, count=10):
-    dirv=1 if forward else -1
-    out=[]
+    dirv=1 if forward else -1; out=[]
     for i in range(1,count+1):
-        g_i=(month_gidx+dirv*i)%10
-        b_i=(month_bidx+dirv*i)%12
+        g_i=(month_gidx+dirv*i)%10; b_i=(month_bidx+dirv*i)%12
         out.append({'start_age':start_age+(i-1)*10,'g_idx':g_i,'b_idx':b_i})
     return out
 
@@ -257,8 +218,7 @@ def calc_age_on(dob, now_dt):
 
 def lunar_to_solar(y,m,d,is_leap=False):
     if not HAS_LUNAR: raise RuntimeError('korean-lunar-calendar 미설치')
-    c=KoreanLunarCalendar(); c.setLunarDate(y,m,d,is_leap)
-    return date(c.solarYear,c.solarMonth,c.solarDay)
+    c=KoreanLunarCalendar(); c.setLunarDate(y,m,d,is_leap); return date(c.solarYear,c.solarMonth,c.solarDay)
 
 @dataclass
 class Inputs:
@@ -276,39 +236,33 @@ def decide_geok(inp):
     ds=inp.day_stem; mb=inp.month_branch; ms=inp.month_stem
     stems=list(inp.stems_visible); branches=list(inp.branches_visible)
     ds_e=STEM_ELEM[ds]; ds_p=STEM_YY[ds]
-    mb_main=BRANCH_MAIN[mb]
-    mb_e,mb_p=STEM_ELEM[mb_main],STEM_YY[mb_main]
-    visible_set=set(stems); hidden_set=all_hidden_stems(branches)
-    pool=visible_set|hidden_set
+    mb_main=BRANCH_MAIN[mb]; mb_e,mb_p=STEM_ELEM[mb_main],STEM_YY[mb_main]
+    visible_set=set(stems); hidden_set=all_hidden_stems(branches); pool=visible_set|hidden_set
     if mb in {'자','오','묘','유','인','신','사','해'} and ds_e==mb_e:
         off_e=ELEM_OVER_ME[ds_e]
         jung_gwan=stem_with_polarity(off_e,'음' if ds_p=='양' else '양')
         pyeon_gwan=stem_with_polarity(off_e,ds_p)
         same_polarity=(ds_p==mb_p)
         any_jung_br=any(ten_god_for_branch(ds,b)=='정관' for b in branches)
-        jung_branches=[b for b in branches if ten_god_for_branch(ds,b)=='정관']
         any_pyeon_br=any(ten_god_for_branch(ds,b)=='편관' for b in branches)
-        pyeon_branches=[b for b in branches if ten_god_for_branch(ds,b)=='편관']
         if same_polarity:
             if (jung_gwan in visible_set) or any_jung_br:
                 why=('정관 '+jung_gwan+' 천간 투간' if jung_gwan in visible_set else '지지 정관 존재')
-                return '건록격',f'[특수] 월비+{why}→건록격'
-            else: return '월비격','[특수] 월비·정관 없음→월비격'
+                return '건록격',f'[특수] 월비+{why}->건록격'
+            else: return '월비격','[특수] 월비, 정관 없음->월비격'
         else:
             if (pyeon_gwan in visible_set) or any_pyeon_br:
                 why=('편관 '+pyeon_gwan+' 천간 투간' if pyeon_gwan in visible_set else '지지 편관 존재')
-                return '양인격',f'[특수] 월겁+{why}→양인격'
-            else: return '월겁격','[특수] 월겁·편관 없음→월겁격'
+                return '양인격',f'[특수] 월겁+{why}->양인격'
+            else: return '월겁격','[특수] 월겁, 편관 없음->월겁격'
     grp='자오묘유' if mb in {'자','오','묘','유'} else ('인신사해' if mb in {'인','신','사','해'} else '진술축미')
     if grp=='자오묘유':
         month_elem=STEM_ELEM[mb_main]
         same_elem_vis=[s for s in stems if STEM_ELEM.get(s)==month_elem]
         if same_elem_vis:
             pick=next((s for s in same_elem_vis if STEM_YY[s]!=ds_p),same_elem_vis[0])
-            six=ten_god_for_stem(ds,pick)
-            return f'{six}격',f'[자오묘유] {pick} 투간→{six}격'
-        six=ten_god_for_stem(ds,mb_main)
-        return f'{six}격',f'[자오묘유] 투간없음→체(본기 {mb_main}){six}격'
+            six=ten_god_for_stem(ds,pick); return f'{six}격',f'[자오묘유] {pick} 투간->{six}격'
+        six=ten_god_for_stem(ds,mb_main); return f'{six}격',f'[자오묘유] 투간없음->체(본기 {mb_main}){six}격'
     if grp=='인신사해':
         rokji=mb_main; month_elem=STEM_ELEM[rokji]
         base_stems=set(stems_of_element(month_elem))
@@ -320,11 +274,10 @@ def decide_geok(inp):
                 jung_gwan=stem_with_polarity(off_e,'음' if STEM_YY[ds]=='양' else '양')
                 pyeon_gwan=stem_with_polarity(off_e,STEM_YY[ds])
                 if STEM_YY[pick]==STEM_YY[ds]:
-                    if jung_gwan in inp.stems_visible: return '건록격',f'[인신사해] {pick}투간+정관{jung_gwan}→건록격'
+                    if jung_gwan in inp.stems_visible: return '건록격',f'[인신사해] {pick}투간+정관{jung_gwan}->건록격'
                 else:
-                    if pyeon_gwan in inp.stems_visible: return '양인격',f'[인신사해] {pick}투간+편관{pyeon_gwan}→양인격'
-            six=ten_god_for_stem(ds,pick)
-            return f'{six}격',f'[인신사해] 록지{pick}투간→{six}격'
+                    if pyeon_gwan in inp.stems_visible: return '양인격',f'[인신사해] {pick}투간+편관{pyeon_gwan}->양인격'
+            six=ten_god_for_stem(ds,pick); return f'{six}격',f'[인신사해] 록지{pick}투간->{six}격'
         tri_elem=MONTH_SAMHAP.get(mb,'')
         if tri_elem:
             tri_grp=SAMHAP[tri_elem]; others=set(tri_grp)-{mb}
@@ -333,96 +286,152 @@ def decide_geok(inp):
                 tri_vis=[s for s in tri_stems if s in inp.stems_visible]
                 if tri_vis and tri_elem!=STEM_ELEM[ds]:
                     pick=tri_vis[0]; six=ten_god_for_stem(ds,pick)
-                    return f'중기격({six})',f'[인신사해] 삼합+중기사령+{pick}투간→중기격'
-        if ms: six=ten_god_for_stem(ds,ms); return f'{six}격',f'[인신사해] 록지투간없음→월간{ms}기준{six}격'
-        six=ten_god_for_stem(ds,rokji)
-        return f'{six}격',f'[인신사해] 폴백→본기({rokji}){six}격'
+                    return f'중기격({six})',f'[인신사해] 삼합+중기사령+{pick}투간->중기격'
+        if ms: six=ten_god_for_stem(ds,ms); return f'{six}격',f'[인신사해] 록지투간없음->월간{ms}기준{six}격'
+        six=ten_god_for_stem(ds,rokji); return f'{six}격',f'[인신사해] 폴백->본기({rokji}){six}격'
     if grp=='진술축미':
-        h=BRANCH_HIDDEN.get(mb,[])
-        mb_main_l=BRANCH_MAIN[mb]
-        is_front12=(inp.day_from_jieqi<=11)
+        h=BRANCH_HIDDEN.get(mb,[]); mb_main_l=BRANCH_MAIN[mb]; is_front12=(inp.day_from_jieqi<=11)
         tri_elem=MONTH_SAMHAP.get(mb,'')
         if tri_elem:
-            tri_grp=SAMHAP[tri_elem]; others=set(tri_grp)-{mb}
-            partners=others&set(branches)
+            tri_grp=SAMHAP[tri_elem]; others=set(tri_grp)-{mb}; partners=others&set(branches)
             if partners:
                 if tri_elem==STEM_ELEM[ds]:
-                    six=ten_god_for_stem(ds,mb_main_l)
-                    return f'{six}격',f'[진술축미] 반합{mb}+동일오행→체(본기){six}격'
-                tri_stems=stems_of_element(tri_elem)
-                tri_vis=[s for s in tri_stems if s in visible_set]
-                mid_qi=h[1] if len(h)>=2 else (h[-1] if h else mb_main_l)
-                mid_is_tri=(STEM_ELEM.get(mid_qi)==tri_elem)
+                    six=ten_god_for_stem(ds,mb_main_l); return f'{six}격',f'[진술축미] 반합{mb}+동일오행->체(본기){six}격'
+                tri_stems=stems_of_element(tri_elem); tri_vis=[s for s in tri_stems if s in visible_set]
+                mid_qi=h[1] if len(h)>=2 else (h[-1] if h else mb_main_l); mid_is_tri=(STEM_ELEM.get(mid_qi)==tri_elem)
                 pick=tri_vis[0] if tri_vis else (mid_qi if mid_is_tri else stem_with_polarity(tri_elem,'음' if STEM_YY[ds]=='양' else '양'))
-                six=ten_god_for_stem(ds,pick)
-                return f'{six}격',f'[진술축미] 반합+{pick}기준{six}격'
+                six=ten_god_for_stem(ds,pick); return f'{six}격',f'[진술축미] 반합+{pick}기준{six}격'
         if is_front12:
-            yeogi=h[0] if h else mb_main_l
-            y_elem=STEM_ELEM[yeogi]
+            yeogi=h[0] if h else mb_main_l; y_elem=STEM_ELEM[yeogi]
             same_vis=[s for s in stems if STEM_ELEM.get(s)==y_elem]
             opp=[s for s in same_vis if STEM_YY[s]!=ds_p]
             pick=opp[0] if opp else (same_vis[0] if same_vis else yeogi)
-            six=ten_god_for_stem(ds,pick)
-            return f'{six}격',f'[진술축미] 절입후12일이내→여기사령({pick}){six}격'
+            six=ten_god_for_stem(ds,pick); return f'{six}격',f'[진술축미] 절입후12일이내->여기사령({pick}){six}격'
         else:
             earth_vis=[s for s in ('무','기') if s in visible_set]
             opp=[s for s in earth_vis if STEM_YY[s]!=ds_p]
             pick=opp[0] if opp else (earth_vis[0] if earth_vis else mb_main_l)
-            six=ten_god_for_stem(ds,pick)
-            return f'{six}격',f'[진술축미] 절입13일이후→주왕토({pick}){six}격'
-    six=ten_god_for_stem(ds,BRANCH_MAIN[mb])
-    return f'{six}격',f'[폴백]→체(본기{BRANCH_MAIN[mb]}){six}격'
+            six=ten_god_for_stem(ds,pick); return f'{six}격',f'[진술축미] 절입13일이후->주왕토({pick}){six}격'
+    six=ten_god_for_stem(ds,BRANCH_MAIN[mb]); return f'{six}격',f'[폴백]->체(본기{BRANCH_MAIN[mb]}){six}격'
 
 def calc_wolun_accurate(year):
-    # 황경 기반 정확한 월운 계산 (절기 시각 기준)
-    jie12_prev=compute_jie_times_calc(year-1)
-    jie12_this=compute_jie_times_calc(year)
-    jie12_next=compute_jie_times_calc(year+1)
-    jie24_prev=compute_jie24_times_calc(year-1)
-    jie24_this=compute_jie24_times_calc(year)
-    jie24_next=compute_jie24_times_calc(year+1)
-    # year에 절기 시작일이 속하는 입절들 수집
+    jie12_prev=compute_jie_times_calc(year-1); jie12_this=compute_jie_times_calc(year); jie12_next=compute_jie_times_calc(year+1)
+    jie24_prev=compute_jie24_times_calc(year-1); jie24_this=compute_jie24_times_calc(year); jie24_next=compute_jie24_times_calc(year+1)
     collected=[]
     for src_jie in [jie12_prev,jie12_this,jie12_next]:
         for jname in JIE_ORDER:
             if jname in src_jie:
                 t=to_solar_time(src_jie[jname])
-                if t.year==year:
-                    collected.append((t,jname))
+                if t.year==year: collected.append((t,jname))
     collected.sort(key=lambda x:x[0])
-    # 각 절기에서 사주 월주 계산
     items=[]
     for t,jname in collected:
-        t_calc=t+timedelta(hours=1)
-        fp=four_pillars_from_solar(t_calc)
+        t_calc=t+timedelta(hours=1); fp=four_pillars_from_solar(t_calc)
         m_gan=fp['month'][0]; m_ji=fp['month'][1]
-        # 중간 절기 시각
-        t2_name=MONTH_TO_2TERMS[m_ji][1]
-        t2=None
+        t2_name=MONTH_TO_2TERMS[m_ji][1]; t2=None
         for src in [jie24_this,jie24_prev,jie24_next]:
             if t2_name in src:
                 cand=to_solar_time(src[t2_name])
                 if cand>t: t2=cand; break
-        # 다음 입절 시각
-        jie_idx=JIE_ORDER.index(jname)
-        next_jname=JIE_ORDER[(jie_idx+1)%12]
-        t_end=None
+        jie_idx=JIE_ORDER.index(jname); next_jname=JIE_ORDER[(jie_idx+1)%12]; t_end=None
         for src in [jie12_this,jie12_next,jie12_prev]:
             if next_jname in src:
                 nt=to_solar_time(src[next_jname])
                 if nt>t: t_end=nt; break
         items.append({'month':t.month,'gan':m_gan,'ji':m_ji,'t1':t,'t2':t2,'t_end':t_end})
     return items
+
 def calc_ilun_strip(start_dt, end_dt, day_stem, k_anchor=K_ANCHOR):
-    items=[]
-    cur=start_dt.replace(hour=12,minute=0,second=0,microsecond=0)
+    items=[]; cur=start_dt.replace(hour=12,minute=0,second=0,microsecond=0)
     if cur<start_dt: cur=cur+timedelta(days=1)
     while cur<end_dt:
-        dj,dc,djidx=day_ganji_solar(cur,k_anchor)
-        g,j=dj[0],dj[1]
+        dj,dc,djidx=day_ganji_solar(cur,k_anchor); g,j=dj[0],dj[1]
         items.append({'date':cur.date(),'gan':g,'ji':j,'six':f'{six_for_stem(day_stem,g)}/{six_for_branch(day_stem,j)}'})
         cur=cur+timedelta(days=1)
     return items
+
+# ── 사령(司令) 데이터 ──
+SARYEONG = {
+    "해": {"early_15": "갑", "late_15": "임"},
+    "자": {"early_15": "임", "late_15": "계"},
+    "축": {"early_15": "계", "late_15": "신"},
+    "인": {"early_15": "병", "late_15": "갑"},
+    "묘": {"early_15": "갑", "late_15": "을"},
+    "진": {"early_15": "을", "late_15": "계"},
+    "사": {"early_15": "경", "late_15": "병"},
+    "오": {"early_15": "병", "late_15": "정"},
+    "미": {"early_15": "을", "late_15": "정"},
+    "신": {"early_15": "임", "late_15": "경"},
+    "유": {"early_15": "경", "late_15": "신"},
+    "술": {"early_15": "신", "late_15": "정"},
+}
+
+# ── 당령(當令) 데이터 ──
+DANGRYEONG = [
+    {"months":["자","축"],"period":"동지~입춘","heaven_mission":"계수","description":"깊이를 더하고, 내면을 정화하며, 감정과 지혜를 축적하는 사명을 받았습니다."},
+    {"months":["인","묘"],"period":"입춘~춘분","heaven_mission":"갑목","description":"새로운 시작을 열고, 성장의 씨앗을 틔우는 개척의 사명을 받았습니다."},
+    {"months":["묘","진"],"period":"춘분~입하","heaven_mission":"을목","description":"관계를 다듬고, 부드럽게 확장하며 조화를 이루는 사명을 받았습니다."},
+    {"months":["사","오"],"period":"입하~하지","heaven_mission":"병화","description":"세상에 빛을 드러내고, 에너지를 외부로 확산하는 사명을 받았습니다."},
+    {"months":["오","미"],"period":"하지~입추","heaven_mission":"정화","description":"따뜻함으로 사람을 연결하고, 관계 속에서 의미를 완성하는 사명을 받았습니다."},
+    {"months":["신","유"],"period":"입추~추분","heaven_mission":"경금","description":"질서를 세우고, 불필요한 것을 정리하며 기준을 만드는 사명을 받았습니다."},
+    {"months":["유","술"],"period":"추분~입동","heaven_mission":"신금","description":"정밀함과 통찰로 본질을 구분하고 다듬는 사명을 받았습니다."},
+    {"months":["해","자"],"period":"입동~동지","heaven_mission":"임수","description":"포용과 흐름 속에서 세상을 연결하고 순환시키는 사명을 받았습니다."},
+]
+
+def get_saryeong_gan(month_branch, day_from_jieqi):
+    sr = SARYEONG.get(month_branch)
+    if not sr: return None, None
+    if day_from_jieqi < 15:
+        return sr["early_15"], "전반15일"
+    else:
+        return sr["late_15"], "후반15일"
+
+def get_dangryeong(month_branch):
+    for item in DANGRYEONG:
+        if month_branch in item["months"]:
+            return item
+    return None
+
+def get_nearby_jeolip(dt_solar):
+    year = dt_solar.year
+    all_jeolip = []
+    for y in [year-1, year, year+1]:
+        jie12 = compute_jie_times_calc(y)
+        for name in JIE_ORDER:
+            if name in jie12:
+                t = to_solar_time(jie12[name])
+                all_jeolip.append((name, t))
+    all_jeolip.sort(key=lambda x: x[1])
+    prev_item = None
+    next_item = None
+    for item in all_jeolip:
+        if item[1] <= dt_solar:
+            prev_item = item
+        elif next_item is None and item[1] > dt_solar:
+            next_item = item
+    return prev_item, next_item
+
+# ── 격(格) 카드 데이터 ──
+GYEOK_CARDS = [
+    {"slug":"geonrok","card_title":"체제건립 · 건록격","icon":"🏛️","one_liner":"세상을 더 나은 규칙과 교육으로 바꾸려는 '기반을 만드는 사람'","story":"당신은 혼란 속에서도 기준을 세우는 사람입니다. 무너진 질서를 그냥 두지 않고, 공부하고 정리하고 글과 말로 설득해요. 사람들이 안전해지려면 제도, 교육, 원칙이 필요하다고 믿기 때문에, 오늘도 조용히 초석을 다지고 있습니다. 당신이 추구하는 건 품격 있는 변화, 즉 흔들리지 않는 기반 위에서 세상을 바꾸는 일이에요.","strengths":["학습력과 정리력","말, 글로 설득하는 힘","윤리, 품격을 지키는 태도","장기전에서 버티는 꾸준함"],"growth_tips":["70% 준비되면 작은 실행부터","원칙을 말하기 전에 상대의 사정 한 문장 먼저","비판보다 대안으로 말하기"],"praise_keywords":["기반을 만든다","품격 있다","믿고 맡길 수 있다","정리력이 탁월하다","원칙 위의 따뜻함"],"keywords":["건록격","건록","월비격","월비"]},
+    {"slug":"yangin","card_title":"체제수호 · 양인격","icon":"🛡️","one_liner":"약자를 지키기 위해 몸으로 책임지는 '방패형 리더'","story":"당신은 위험을 보면 먼저 몸이 움직이는 사람입니다. 불의와 부조리를 그냥 넘기지 못하고, 누군가 다치면 내가 대신 막고 싶어져요. 그래서 개인의 힘을 키우게 돕거나, 필요하면 팀을 만들어 함께 버텨냅니다. 당신이 추구하는 건 보호와 의리입니다.","strengths":["강한 책임감","약자 보호 본능","팀을 지키는 헌신","위기 대응력"],"growth_tips":["도와주기 전에 스스로 할 수 있는 1단계부터 요청하기","의리=침묵이 아니라 건강한 경계","휴식도 책임의 일부로 일정에 넣기"],"praise_keywords":["든든하다","의리가 있다","지켜준다","리더십이 있다","끝까지 책임진다"],"keywords":["양인격","양인","월겁격","월겁"]},
+    {"slug":"sanggwan","card_title":"산업융합 · 상관격","icon":"🔧","one_liner":"규칙을 활용해 혁신을 만드는 '응용의 천재'","story":"당신은 정해진 틀만 따르면 답답해지는 사람입니다. 주변 환경을 빠르게 읽고, 있는 자원을 엮어서 새로운 방식을 만들어내요. 변화가 올 때 오히려 살아나고, 효율적인 길을 찾아내는 능력이 탁월합니다.","strengths":["임기응변과 적응력","아이디어를 현실로 바꾸는 응용력","혁신 추진력","효율 중심 사고"],"growth_tips":["아이디어는 한 장 요약+첫 실행까지","편법처럼 보일 땐 근거와 리스크를 먼저 공개","관계 갈등은 사실-감정-요청 순서로 말하기"],"praise_keywords":["센스 있다","응용력이 탁월하다","혁신적이다","문제 해결이 빠르다","길을 만든다"],"keywords":["상관격","상관"]},
+    {"slug":"sikshin","card_title":"연구개발 · 식신격","icon":"🧪","one_liner":"실험과 성과로 말하는 '꾸준한 빌더'","story":"당신은 해보면 알지라는 태도로 성장하는 사람입니다. 연구하고 만들고 개선하면서 실력을 쌓고, 결과로 증명하고 싶어해요. 주관적인 평가보다 객관적인 지표와 성과를 선호하고, 자유로운 몰입 환경에서 빛납니다.","strengths":["몰입과 실행","책임감 있는 생산성","학습, 실험, 개선 루프","객관적 판단"],"growth_tips":["일의 우선순위를 효과/시간 2축으로 정하기","성과 공유는 과정 1줄 + 결과 1줄로 짧게","사람 이슈도 시스템 개선으로 다루기"],"praise_keywords":["생산적이다","뭐든 척척 한다","실력이 있다","꾸준하다","결과로 증명한다"],"keywords":["식신격","식신"]},
+    {"slug":"jeongin","card_title":"교육행정 · 정인격","icon":"📚","one_liner":"지식과 기준으로 안정감을 주는 '정석형 멘토'","story":"당신은 정리된 지식에서 편안함을 얻는 사람입니다. 배운 것을 체계적으로 쌓고, 그 범위 안에서 정확히 해내는 데 강해요. 눈에 띄기보다 실속을 추구하고, 맡은 임무를 차분히 해결합니다.","strengths":["개념 정리/문서화","안정적인 수행력","기준을 지키는 신뢰","지식 전달 능력"],"growth_tips":["새로운 일은 작게 테스트로 안전하게 확장","기준을 말하기 전에 상대의 목표를 먼저 확인","정답보다 작동하는 해결책 1개를 먼저 제시"],"praise_keywords":["박학다식하다","정리 잘한다","일처리가 정확하다","믿음직하다","기준을 잡아준다"],"keywords":["정인격","정인"]},
+    {"slug":"pyeonin","card_title":"기획전략 · 편인격","icon":"🌙","one_liner":"상상과 공감으로 방향을 만드는 '의미 설계자'","story":"당신은 남들이 못 보는 가능성을 먼저 느끼는 사람입니다. 상상력과 감정의 깊이가 아이디어를 만들고, 사람의 고통을 그냥 지나치지 못해요. 구체화만 붙으면 엄청난 기획이 됩니다.","strengths":["창의적 기획","공감 기반 아이디어","미래 지향적 사고","깊은 통찰(감정/서사)"],"growth_tips":["아이디어는 1)목표 2)대상 3)첫 행동으로 쪼개기","현실 검증 파트너 1명을 정해 체크받기","감정 표현 뒤엔 구체적 요청을 붙이기"],"praise_keywords":["창의적이다","따뜻하다","상상력이 무한하다","의미를 만든다","사람을 살린다"],"keywords":["편인격","편인"]},
+    {"slug":"jeongjae","card_title":"실용경제 · 정재격","icon":"🧱","one_liner":"안정과 실속을 지키는 '현실 설계자'","story":"당신은 지속 가능함이 얼마나 중요한지 아는 사람입니다. 크게 흔들리지 않는 수입, 안정적인 시스템, 실용적인 선택을 선호해요. 내 사람에게는 책임감 있게 베풀지만, 신뢰가 쌓이기 전까지는 쉽게 마음을 열지 않습니다.","strengths":["현실 감각","지출/리스크 관리","지속 가능한 선택","책임 있는 보호 본능"],"growth_tips":["변화는 작은 실험으로만 도입","돈/시간은 가치 예산을 따로 배정","기회는 손실 한도를 정해두고 도전"],"praise_keywords":["한결같다","실속 있다","안정적이다","믿음직하다","관리 능력이 좋다"],"keywords":["정재격","정재"]},
+    {"slug":"pyeonjae","card_title":"혁신경영 · 편재격","icon":"🌍","one_liner":"판을 넓혀 기회를 만드는 '확장형 사업가'","story":"당신은 한 자리에서만 머무르면 답답해지는 사람입니다. 사람들과 함께 움직이며 기회를 찾고, 새로운 분야를 개척하는 데 에너지가 생겨요. 대외 활동에서 빛나고, 파트너십으로 성장을 만들려 합니다.","strengths":["도전과 확장성","네트워킹/협업","기회 포착","대외 감각(브랜딩/시장)"],"growth_tips":["동시에 벌리는 프로젝트는 2개까지만","수익/가치/리스크 3줄로 의사결정","파트너십은 역할, 기대, 정산을 문서로"],"praise_keywords":["진취적이다","도전적이다","확장성이 있다","호탕하다","판을 키운다"],"keywords":["편재격","편재"]},
+    {"slug":"jeonggwan","card_title":"원리운영 · 정관격","icon":"⚖️","one_liner":"규칙과 협동으로 조직을 살리는 '원칙형 운영자'","story":"당신은 조직이 굴러가려면 규칙과 시스템이 필요하다고 믿는 사람입니다. 원리원칙에서 안정감을 느끼고, 모두가 공정하게 움직이길 바래요. 행정, 운영, 제도 정비에 강하고, 조직의 신뢰를 지켜냅니다.","strengths":["원칙과 공정성","운영/행정 능력","책임감","협업 구조를 만드는 힘"],"growth_tips":["원칙 적용 전 예외 기준을 1개만 정해두기","사람 문제는 규정보다 합의부터","칭찬은 태도+영향까지 구체적으로"],"praise_keywords":["성실하다","믿고 맡길 수 있다","원칙적이다","조직을 살린다","공정하다"],"keywords":["정관격","정관"]},
+    {"slug":"pyeongwan","card_title":"관리감독 · 편관격","icon":"🦅","one_liner":"기준을 세워 구분하고 단속하는 '감독형 리더'","story":"당신은 흐릿한 상태를 싫어하고, 분명한 기준을 세우는 사람입니다. 조직의 경쟁력은 관리와 감독에서 나온다고 믿고, 역할, 위계, 규율을 선명하게 잡아줘요. 남들이 놓치는 문제를 빠르게 찾아내는 감별력이 강합니다.","strengths":["문제 탐지/감별력","위기 관리","규율 수립","결단력"],"growth_tips":["지적 전에 기대 기준을 먼저 공유","사람을 단속하기보다 행동을 교정하기","강한 메시지 뒤엔 반드시 출구(대안) 제공"],"praise_keywords":["특출나다","안목이 좋다","감별사다","결단력 있다","위기를 잡는다"],"keywords":["편관격","편관","중기격"]},
+]
+
+def find_geok_card(geok_name):
+    geok_clean = geok_name.replace('격','').strip()
+    for card in GYEOK_CARDS:
+        for kw in card["keywords"]:
+            if kw in geok_name or kw in geok_clean:
+                return card
+    return None
 
 MOBILE_CSS = """
 <style>
@@ -441,13 +450,6 @@ body,.stApp{background:var(--bg)!important;color:var(--text)!important;font-fami
 .saju-table .lb td{font-size:10px;color:var(--sub);text-align:center;padding:2px 0;}
 .gcell,.jcell{text-align:center;padding:0;}
 .gcell div,.jcell div{display:flex;align-items:center;justify-content:center;width:100%;height:40px;border-radius:8px;font-weight:900;font-size:22px;border:1px solid rgba(0,0,0,.15);margin:1px auto;}
-.strip-outer{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:thin;padding:2px 0;}
-.strip-inner{display:inline-flex;flex-wrap:nowrap;gap:4px;padding:2px 4px;}
-.un-card{display:flex;flex-direction:column;align-items:center;min-width:52px;padding:4px 2px 6px;border:1px solid var(--bdr);border-radius:10px;background:var(--card);cursor:pointer;}
-.un-card.active{border:2px solid var(--acc)!important;background:#d4c48a;}
-.un-card .lbl{font-size:10px;color:var(--sub);margin-bottom:2px;}
-.un-card .gbox,.un-card .jbox{width:44px;height:44px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:900;border:1px solid rgba(0,0,0,.1);margin-bottom:2px;}
-.un-card .ss{font-size:9px;color:var(--sub);text-align:center;}
 .sec-title{font-size:13px;color:var(--acc);font-weight:bold;padding:4px 6px;border-left:3px solid var(--acc);margin:10px 0 6px;}
 .geok-box{background:rgba(200,184,122,.2);border:1px solid var(--acc);border-radius:8px;padding:10px 12px;margin:8px 0;font-size:12px;color:var(--text);}
 .geok-name{font-size:16px;font-weight:900;color:#8b4513;margin-bottom:4px;}
@@ -464,7 +466,15 @@ body,.stApp{background:var(--bg)!important;color:var(--text)!important;font-fami
 .cal-table td.today-cell{background:#ffe8a0;border:1px solid var(--acc);}
 .cal-table td.sun .dn{color:#E53935;}
 .cal-table td.sat .dn{color:#1565C0;}
-.ai-btn{display:block;background:linear-gradient(135deg,#7b4fa0,#4a2a70);border:1px solid #a070c0;border-radius:12px;padding:12px;text-align:center;color:#e8d0ff;font-size:14px;font-weight:bold;text-decoration:none;margin:12px 0;}
+.geok-card-front{background:linear-gradient(135deg,rgba(200,184,122,.25),rgba(160,148,94,.15));border:1px solid var(--acc);border-radius:12px;padding:12px 14px;margin:4px 0 2px;cursor:pointer;}
+.geok-card-title{font-size:14px;font-weight:900;color:#8b4513;}
+.geok-card-oneliner{font-size:11px;color:var(--sub);line-height:1.5;margin-top:4px;}
+.geok-card-detail{background:#faf6ed;border:1px solid #d4b86a;border-radius:10px;padding:12px 14px;margin:4px 0 8px;font-size:12px;color:var(--text);line-height:1.6;}
+.geok-tag{display:inline-block;background:#f0e8c8;color:#7a5a1a;border:1px solid #c8a84a;border-radius:20px;padding:2px 8px;font-size:10px;margin:2px;}
+.ai-section{background:linear-gradient(135deg,#fff0f5,#ffe4ee);border:1px solid #f4a0c0;border-radius:12px;padding:12px;margin:12px 0 4px;}
+.bottom-btns{display:flex;gap:8px;margin:14px 0 8px;}
+.bottom-btn-saju{flex:1;background:linear-gradient(135deg,#c8b87a,#a0945e);border:none;border-radius:10px;padding:12px 6px;text-align:center;color:#fff;font-size:12px;font-weight:bold;text-decoration:none;display:block;}
+.bottom-btn-ai{flex:1;background:linear-gradient(135deg,#e8609a,#c0407a);border:none;border-radius:10px;padding:12px 6px;text-align:center;color:#fff;font-size:13px;font-weight:bold;text-decoration:none;display:block;}
 label{color:var(--text)!important;font-size:13px!important;}
 div[data-testid='stHorizontalBlock']{gap:4px!important;}
 div[data-testid='column']{padding:0 2px!important;}
@@ -483,10 +493,8 @@ def ji_card_html(j, size=52, fsize=26):
     return f'<div style="width:{size}px;height:{size}px;border-radius:8px;background:{bg};color:{fg};display:flex;align-items:center;justify-content:center;font-size:{fsize}px;font-weight:900;border:1px solid rgba(0,0,0,.15);">{hj}</div>'
 
 def render_saju_table(fp, ilgan):
-    yg,yj=fp['year'][0],fp['year'][1]
-    mg,mj=fp['month'][0],fp['month'][1]
-    dg,dj=fp['day'][0],fp['day'][1]
-    sg,sj=fp['hour'][0],fp['hour'][1]
+    yg,yj=fp['year'][0],fp['year'][1]; mg,mj=fp['month'][0],fp['month'][1]
+    dg,dj=fp['day'][0],fp['day'][1]; sg,sj=fp['hour'][0],fp['hour'][1]
     cols=[(sg,sj,'시주'),(dg,dj,'일주'),(mg,mj,'월주'),(yg,yj,'년주')]
     ss_g=[six_for_stem(ilgan,sg),'일간',six_for_stem(ilgan,mg),six_for_stem(ilgan,yg)]
     ss_j=[six_for_branch(ilgan,sj),six_for_branch(ilgan,dj),six_for_branch(ilgan,mj),six_for_branch(ilgan,yj)]
@@ -503,6 +511,34 @@ def render_saju_table(fp, ilgan):
     html+='</tr></tbody></table></div>'
     return html
 
+def render_geok_card_html(card, show_detail=False):
+    if not card: return ''
+    icon_title = f'{card["icon"]} {card["card_title"]}'
+    front = (
+        '<div class="geok-card-front">'
+        f'<div class="geok-card-title">{icon_title}</div>'
+        f'<div class="geok-card-oneliner">{card["one_liner"]}</div>'
+        '<div style="font-size:10px;color:#a0845e;margin-top:6px;text-align:right;">▼ 상세보기 클릭</div>'
+        '</div>'
+    )
+    if not show_detail:
+        return front
+    strengths_html = ''.join([f'<span class="geok-tag">✦ {s}</span>' for s in card["strengths"]])
+    tips_html = ''.join([f'<li style="margin-bottom:4px;">{t}</li>' for t in card["growth_tips"]])
+    praise_html = ''.join([f'<span class="geok-tag" style="background:#e8f8e8;color:#2a6a2a;border-color:#6ab46a;">✧ {p}</span>' for p in card["praise_keywords"]])
+    detail = (
+        '<div class="geok-card-detail">'
+        f'<div style="font-size:15px;font-weight:900;color:#8b4513;margin-bottom:8px;">{icon_title}</div>'
+        f'<div style="font-size:12px;margin-bottom:10px;line-height:1.7;color:#3a2a14;">{card["story"]}</div>'
+        '<div style="font-size:12px;font-weight:bold;color:#8b6914;margin-bottom:4px;">💪 강점</div>'
+        f'<div style="margin-bottom:10px;">{strengths_html}</div>'
+        '<div style="font-size:12px;font-weight:bold;color:#8b6914;margin-bottom:4px;">🌱 성장 팁</div>'
+        f'<ul style="margin:0 0 10px;padding-left:18px;font-size:11px;color:#2c2416;">{tips_html}</ul>'
+        '<div style="font-size:12px;font-weight:bold;color:#2a6a2a;margin-bottom:4px;">🎉 칭찬 키워드</div>'
+        f'<div>{praise_html}</div>'
+        '</div>'
+    )
+    return detail
 
 def render_daeun_card(age, g, j, ilgan, active, btn_key, dy_year=0):
     bg_g=GAN_BG.get(g,"#888"); tc_g=gan_fg(g)
@@ -510,23 +546,24 @@ def render_daeun_card(age, g, j, ilgan, active, btn_key, dy_year=0):
     hj_g=hanja_gan(g); hj_j=hanja_ji(j)
     bdr='2px solid #8b6914' if active else '1px solid #c8b87a'
     bg_card='#d4c48a' if active else '#e8e4d8'
-    six_g=six_for_stem(ilgan,g)
-    six_j=six_for_branch(ilgan,j)
-    st.markdown(f'''<div style="text-align:center;font-size:10px;color:#6b5a3e;margin-bottom:1px">{age}세</div>
-    <div style="display:flex;flex-direction:column;align-items:center;border:{bdr};border-radius:10px;background:{bg_card};padding:3px 2px;">
-    <div style="font-size:9px;color:#5a3e0a;margin-bottom:1px;white-space:nowrap">{six_g}</div>
-    <div style="width:30px;height:30px;border-radius:5px;background:{bg_g};color:{tc_g};display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;margin-bottom:1px">{hj_g}</div>
-    <div style="width:30px;height:30px;border-radius:5px;background:{bg_j};color:{tc_j};display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;margin-bottom:1px">{hj_j}</div>
-    <div style="font-size:9px;color:#5a3e0a;white-space:nowrap">{six_j}</div>
-    </div>''', unsafe_allow_html=True)
+    six_g=six_for_stem(ilgan,g); six_j=six_for_branch(ilgan,j)
+    st.markdown(
+        f'<div style="text-align:center;font-size:10px;color:#6b5a3e;margin-bottom:1px">{age}세</div>'
+        f'<div style="display:flex;flex-direction:column;align-items:center;border:{bdr};border-radius:10px;background:{bg_card};padding:3px 2px;">'
+        f'<div style="font-size:9px;color:#5a3e0a;margin-bottom:1px;white-space:nowrap">{six_g}</div>'
+        f'<div style="width:30px;height:30px;border-radius:5px;background:{bg_g};color:{tc_g};display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;margin-bottom:1px">{hj_g}</div>'
+        f'<div style="width:30px;height:30px;border-radius:5px;background:{bg_j};color:{tc_j};display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;margin-bottom:1px">{hj_j}</div>'
+        f'<div style="font-size:9px;color:#5a3e0a;white-space:nowrap">{six_j}</div>'
+        '</div>',
+        unsafe_allow_html=True
+    )
     return st.button(f'{dy_year}', key=btn_key, use_container_width=True)
-
 
 def main():
     st.set_page_config(page_title='이박사 만세력', layout='centered', page_icon='🔮', initial_sidebar_state='collapsed')
     st.markdown(MOBILE_CSS, unsafe_allow_html=True)
     st.markdown('<div class="page-hdr">만 세 력</div>', unsafe_allow_html=True)
-    for key,val in [('page','input'),('saju_data',None),('sel_daeun',0),('sel_seun',0),('sel_wolun',0)]:
+    for key,val in [('page','input'),('saju_data',None),('sel_daeun',0),('sel_seun',0),('sel_wolun',0),('show_geok_detail',False)]:
         if key not in st.session_state: st.session_state[key]=val
     if st.session_state.page=='input': page_input()
     elif st.session_state.page=='saju': page_saju()
@@ -557,21 +594,17 @@ def page_input():
             dt_solar=to_solar_time(dt_local)
             fp=four_pillars_from_solar(dt_solar)
             ilgan=fp['day'][0]
-            # 정확한 황경 기반 절기 계산
             jie12=compute_jie_times_calc(dt_solar.year)
             jie12_solar={n:to_solar_time(t) for n,t in jie12.items()}
-            # 대운
             year_gan=fp['year'][0]
             forward=(is_yang_stem(year_gan)==(gender=='남'))
             start_age=dayun_start_age(dt_solar,jie12_solar,forward)
             daeun=build_dayun_list(fp['m_gidx'],fp['m_bidx'],forward,start_age)
-            # 세운 (출생년도부터 100년치 생성)
             seun_start=base_date.year
             seun=[]
             for i in range(100):
                 sy=seun_start+i; off=(sy-4)%60
                 seun.append((sy,CHEONGAN[off%10],JIJI[off%12]))
-            # 격 계산 (황경 기반)
             jie24=compute_jie24_times_calc(dt_solar.year)
             jie24_solar={n:to_solar_time(t) for n,t in jie24.items()}
             pair=MONTH_TO_2TERMS[fp['month'][1]]
@@ -588,12 +621,10 @@ def page_input():
                 branches_visible=[fp['year'][1],fp['month'][1],fp['day'][1],fp['hour'][1]],
                 solar_dt=dt_solar,first_term_dt=t1,mid_term_dt=t2,day_from_jieqi=day_from_jieqi
             ))
-            # 현재 대운/세운 인덱스
             age_now=calc_age_on(base_date,now)
             sel_du=0
             for idx,item in enumerate(daeun):
                 if item['start_age']<=age_now: sel_du=idx
-            # 현재 나이에 해당하는 세운 인덱스 (인덱스=나이)
             sel_su=min(age_now, 99)
             st.session_state.saju_data={
                 'birth':(base_date.year,base_date.month,base_date.day,hh,mm_t),
@@ -605,6 +636,7 @@ def page_input():
             st.session_state.sel_daeun=sel_du
             st.session_state.sel_seun=sel_su
             st.session_state.sel_wolun=now.month-1
+            st.session_state.show_geok_detail=False
             st.session_state.page='saju'
             st.rerun()
         except Exception as e: st.error(f'입력 오류: {e}')
@@ -616,12 +648,12 @@ def page_saju():
     fp=data['fp']; ilgan=data['ilgan']
     daeun=data['daeun']; seun=data['seun']
     geok=data['geok']; why=data['why']
-    t1=data['t1']; t2=data['t2']
     sel_du=st.session_state.sel_daeun
-    sel_su=st.session_state.sel_seun
     birth_year=data['birth'][0]
-    if st.button('← 입력으로'): st.session_state.page='input'; st.rerun()
-    # 오늘 일진 (황경 기반)
+
+    if st.button('← 입력으로'):
+        st.session_state.page='input'; st.rerun()
+
     now_solar=to_solar_time(now)
     today_fp=four_pillars_from_solar(now_solar)
     yg,yj=today_fp['year'][0],today_fp['year'][1]
@@ -631,21 +663,53 @@ def page_saju():
     hj_mg=hanja_gan(mg); hj_mj=hanja_ji(mj)
     hj_dg=hanja_gan(dg); hj_dj=hanja_ji(dj)
     st.markdown(f'<div class="today-banner">오늘 {now.strftime("%Y.%m.%d")} · {hj_yg}{hj_yj}년 {hj_mg}{hj_mj}월 {hj_dg}{hj_dj}일</div>', unsafe_allow_html=True)
-    # 사주 원국
+
     st.markdown(render_saju_table(fp,ilgan), unsafe_allow_html=True)
-    # 格 박스 - 절입명칭 정확히 표시
+
     month_ji=fp['month'][1]
-    pair=MONTH_TO_2TERMS[month_ji]
-    term1_name=pair[0]  # 입절 이름 (입춘/경칩/청명/... 등)
+    day_from=data['day_from_jieqi']
     du_dir='순행' if data['forward'] else '역행'
     du_age=data['start_age']
-    day_from=data['day_from_jieqi']
-    st.markdown(f'''<div class="geok-box">
-    <div class="geok-name">格 {geok}</div>
-    <div class="geok-why">{why}</div>
-    <div class="geok-why" style="margin-top:4px;">{month_ji}월 司令 ({term1_name} 절입 +{day_from}일) · 대운 {du_age}세 {du_dir}</div>
-    </div>''', unsafe_allow_html=True)
-    # 대운 (오른쪽->왼쪽, 스크롤, 클릭시 월운으로 이동)
+
+    saryeong_gan, saryeong_period = get_saryeong_gan(month_ji, day_from)
+    saryeong_six = ten_god_for_stem(ilgan, saryeong_gan) if saryeong_gan else ''
+    dangryeong_item = get_dangryeong(month_ji)
+    prev_jeolip, next_jeolip = get_nearby_jeolip(data['dt_solar'])
+    prev_str = f"{prev_jeolip[0]} {prev_jeolip[1].strftime('%Y.%m.%d %H:%M')}" if prev_jeolip else '-'
+    next_str = f"{next_jeolip[0]} {next_jeolip[1].strftime('%Y.%m.%d %H:%M')}" if next_jeolip else '-'
+
+    dr_desc = dangryeong_item["description"] if dangryeong_item else ""
+    dr_mission = dangryeong_item["heaven_mission"] if dangryeong_item else "-"
+    dr_period = dangryeong_item["period"] if dangryeong_item else "-"
+
+    geok_box_html = (
+        '<div class="geok-box">'
+        f'<div class="geok-name">格 {geok}</div>'
+        f'<div class="geok-why">{why}</div>'
+        '<div class="geok-why" style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(200,184,122,.4);">'
+        f'<b>司令(사령)</b>: {saryeong_gan}({saryeong_six}) · {saryeong_period} · {month_ji}월 절입+{day_from}일<br>'
+        f'<b>當令(당령)</b>: {dr_mission} · {dr_period}<br>{dr_desc}'
+        '</div>'
+        f'<div class="geok-why" style="margin-top:4px;"><b>절입일</b>: 이전 {prev_str} / 이후 {next_str}</div>'
+        f'<div class="geok-why" style="margin-top:4px;">대운 {du_age}세 {du_dir}</div>'
+        '</div>'
+    )
+    st.markdown(geok_box_html, unsafe_allow_html=True)
+
+    geok_card = find_geok_card(geok)
+    if geok_card:
+        show_detail = st.session_state.get('show_geok_detail', False)
+        if not show_detail:
+            st.markdown(render_geok_card_html(geok_card, show_detail=False), unsafe_allow_html=True)
+            if st.button(f'📖 {geok_card["card_title"]} 상세보기', key='geok_detail_btn'):
+                st.session_state.show_geok_detail = True
+                st.rerun()
+        else:
+            st.markdown(render_geok_card_html(geok_card, show_detail=True), unsafe_allow_html=True)
+            if st.button('▲ 격 설명 닫기', key='geok_close_btn'):
+                st.session_state.show_geok_detail = False
+                st.rerun()
+
     daeun_rev=list(reversed(daeun))
     cols_du=st.columns(len(daeun))
     for ci,col in enumerate(cols_du):
@@ -660,26 +724,22 @@ def page_saju():
                 st.session_state.sel_daeun=real_idx
                 birth_y=data['birth'][0]
                 du_start_age=item['start_age']
-                # 세운: 항상 출생년도부터 100년치
                 new_seun=[]
                 for i in range(100):
                     sy=birth_y+i; off=(sy-4)%60
                     new_seun.append((sy,CHEONGAN[off%10],JIJI[off%12]))
                 st.session_state.saju_data['seun']=new_seun
-                # 해당 대운 시작 나이에 맞는 세운 인덱스로 이동
                 st.session_state.sel_seun=du_start_age
                 st.session_state.page='saju'
                 st.rerun()
-    # 세운 - HTML 스크롤 스트립 (오른쪽=0세, 왼쪽=높은나이)
+
     sel_su=st.session_state.sel_seun
     seun=data["seun"]
     du_item=daeun[sel_du]
     du_start=du_item['start_age']
     birth_y=data['birth'][0]
-    if sel_du==0:
-        seun_age_start=0
-    else:
-        seun_age_start=du_start
+    if sel_du==0: seun_age_start=0
+    else: seun_age_start=du_start
     seun_age_end=du_start+9
     seun_range=[]
     for age_i in range(seun_age_start, seun_age_end+1):
@@ -687,39 +747,50 @@ def page_saju():
             sy,sg,sj=seun[age_i]
             seun_range.append((age_i,sy,sg,sj))
     seun_range_disp=list(reversed(seun_range))
+
     seun_html='<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;padding:4px 0 2px;">'
     seun_html+='<div style="display:inline-flex;flex-wrap:nowrap;gap:2px;padding:0 2px;">'
     for age_i,sy,sg,sj in seun_range_disp:
         bg_g=GAN_BG.get(sg,"#888"); tc_g=gan_fg(sg)
         bg_j=BR_BG.get(sj,"#888"); tc_j=br_fg(sj)
         hj_sg=hanja_gan(sg); hj_sj=hanja_ji(sj)
-        six_g=six_for_stem(ilgan,sg)
-        six_j=six_for_branch(ilgan,sj)
+        six_g=six_for_stem(ilgan,sg); six_j=six_for_branch(ilgan,sj)
         active=(age_i==sel_su)
         bdr='2px solid #8b6914' if active else '1px solid #c8b87a'
         bg_card='#d4c48a' if active else '#e8e4d8'
-        seun_html+=f'''<div style="display:flex;flex-direction:column;align-items:center;min-width:38px;border:{bdr};border-radius:8px;background:{bg_card};padding:3px 2px 2px;">
-<div style="font-size:9px;color:#6b5a3e;margin-bottom:1px;white-space:nowrap">{sy}</div>
-<div style="font-size:9px;color:#5a3e0a;margin-bottom:1px;white-space:nowrap">{six_g}</div>
-<div style="width:30px;height:30px;border-radius:5px;background:{bg_g};color:{tc_g};display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;">{hj_sg}</div>
-<div style="width:30px;height:30px;border-radius:5px;background:{bg_j};color:{tc_j};display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;margin-top:1px;">{hj_sj}</div>
-<div style="font-size:9px;color:#5a3e0a;margin-top:1px;white-space:nowrap">{six_j}</div>
-</div>'''
+        display_age = age_i + 1
+        seun_html+=(
+            f'<div style="display:flex;flex-direction:column;align-items:center;min-width:38px;border:{bdr};border-radius:8px;background:{bg_card};padding:3px 2px 2px;">'
+            f'<div style="font-size:9px;color:#6b5a3e;margin-bottom:1px;white-space:nowrap">{sy}</div>'
+            f'<div style="font-size:9px;color:#5a3e0a;margin-bottom:1px;white-space:nowrap">{six_g}</div>'
+            f'<div style="width:30px;height:30px;border-radius:5px;background:{bg_g};color:{tc_g};display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;">{hj_sg}</div>'
+            f'<div style="width:30px;height:30px;border-radius:5px;background:{bg_j};color:{tc_j};display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;margin-top:1px;">{hj_sj}</div>'
+            f'<div style="font-size:9px;color:#5a3e0a;margin-top:1px;white-space:nowrap">{six_j}</div>'
+            '</div>'
+        )
     seun_html+='</div></div>'
     st.markdown(seun_html, unsafe_allow_html=True)
+
     n_btn=len(seun_range_disp)
     if n_btn>0:
         cols_su=st.columns(n_btn)
         for ci,(age_i,sy,sg,sj) in enumerate(seun_range_disp):
+            display_age = age_i + 1
             with cols_su[ci]:
-                if st.button(f'{age_i}세', key=f'su_{age_i}', use_container_width=True):
+                if st.button(f'{display_age}세', key=f'su_{age_i}', use_container_width=True):
                     st.session_state.sel_seun=age_i
                     st.session_state.sel_wolun=0
                     st.session_state.page='wolun'
                     st.rerun()
-    gpt_url='https://chatgpt.com/g/g-68d90b2d8f448191b87fb7511fa8f80a-rua-myeongrisajusangdamsa'
-    st.markdown(f'<a href="{gpt_url}" target="_blank" class="ai-btn">🤖 AI 챗봇 무료 상담</a>', unsafe_allow_html=True)
 
+    gpt_url='https://chatgpt.com/g/g-68d90b2d8f448191b87fb7511fa8f80a-rua-myeongrisajusangdamsa'
+    bottom_html = (
+        '<div class="bottom-btns">'
+        '<div class="bottom-btn-saju" style="text-align:center;padding:12px 6px;">📊 내 사주 해석 보기</div>'
+        f'<a href="{gpt_url}" target="_blank" class="bottom-btn-ai">🤖 AI 챗봇 무료상담</a>'
+        '</div>'
+    )
+    st.markdown(bottom_html, unsafe_allow_html=True)
 
 def page_wolun():
     data=st.session_state.saju_data
@@ -731,8 +802,9 @@ def page_wolun():
     sy,sg,sj=seun[sel_su]
     if st.button('← 사주로'): st.session_state.page='saju'; st.rerun()
     hj_sg=hanja_gan(sg); hj_sj=hanja_ji(sj)
-    st.markdown(f'<div class="sel-info">{sy}년 {hj_sg}{hj_sj} 월운 ({six_for_stem(ilgan,sg)}/{six_for_branch(ilgan,sj)})</div>', unsafe_allow_html=True)
-    # 황경 기반 월운 계산
+    display_age = sel_su + 1
+    st.markdown(f'<div class="sel-info">{sy}년 {display_age}세 {hj_sg}{hj_sj} 월운 ({six_for_stem(ilgan,sg)}/{six_for_branch(ilgan,sj)})</div>', unsafe_allow_html=True)
+
     wolun=calc_wolun_accurate(sy)
     sel_wu=st.session_state.sel_wolun
     wolun_rev=list(reversed(wolun))
@@ -742,8 +814,7 @@ def page_wolun():
         cols=st.columns(len(row_items))
         for ci,col in enumerate(cols):
             if ci>=len(row_items): break
-            real_idx_in_rev=row_start+ci
-            real_wu=11-real_idx_in_rev
+            real_wu=11-(row_start+ci)
             wm=row_items[ci]["month"]
             wg=row_items[ci]["gan"]; wj=row_items[ci]["ji"]
             with col:
@@ -753,22 +824,30 @@ def page_wolun():
                 hj_wg=hanja_gan(wg); hj_wj=hanja_ji(wj)
                 bdr='2px solid #8b6914' if active else '1px solid #c8b87a'
                 bg_card='#d4c48a' if active else '#e8e4d8'
-                six_g=six_for_stem(ilgan,wg)
-                six_j=six_for_branch(ilgan,wj)
-                st.markdown(f'''<div style="text-align:center;font-size:10px;color:#6b5a3e;margin-bottom:1px">{MONTH_KR[wm-1]}</div>
-                <div style="display:flex;flex-direction:column;align-items:center;border:{bdr};border-radius:10px;background:{bg_card};padding:2px 2px;">
-                <div style="font-size:9px;color:#5a3e0a;margin-bottom:1px;white-space:nowrap">{six_g}</div>
-                <div style="width:34px;height:34px;border-radius:6px;background:{bg_g};color:{tc_g};display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;margin-bottom:1px">{hj_wg}</div>
-                <div style="width:34px;height:34px;border-radius:6px;background:{bg_j};color:{tc_j};display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;margin-bottom:1px">{hj_wj}</div>
-                <div style="font-size:9px;color:#5a3e0a;white-space:nowrap">{six_j}</div>
-                </div>''', unsafe_allow_html=True)
+                six_g=six_for_stem(ilgan,wg); six_j=six_for_branch(ilgan,wj)
+                st.markdown(
+                    f'<div style="text-align:center;font-size:10px;color:#6b5a3e;margin-bottom:1px">{MONTH_KR[wm-1]}</div>'
+                    f'<div style="display:flex;flex-direction:column;align-items:center;border:{bdr};border-radius:10px;background:{bg_card};padding:2px 2px;">'
+                    f'<div style="font-size:9px;color:#5a3e0a;margin-bottom:1px;white-space:nowrap">{six_g}</div>'
+                    f'<div style="width:34px;height:34px;border-radius:6px;background:{bg_g};color:{tc_g};display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;margin-bottom:1px">{hj_wg}</div>'
+                    f'<div style="width:34px;height:34px;border-radius:6px;background:{bg_j};color:{tc_j};display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;margin-bottom:1px">{hj_wj}</div>'
+                    f'<div style="font-size:9px;color:#5a3e0a;white-space:nowrap">{six_j}</div>'
+                    '</div>',
+                    unsafe_allow_html=True
+                )
                 if st.button(f'{wm}월',key=f'wu_{real_wu}',use_container_width=True):
                     st.session_state.sel_wolun=real_wu
                     st.session_state.page='ilun'
                     st.rerun()
-    gpt_url='https://chatgpt.com/g/g-68d90b2d8f448191b87fb7511fa8f80a-rua-myeongrisajusangdamsa'
-    st.markdown(f'<a href="{gpt_url}" target="_blank" class="ai-btn">🤖 AI 챗봇 무료 상담</a>', unsafe_allow_html=True)
 
+    gpt_url='https://chatgpt.com/g/g-68d90b2d8f448191b87fb7511fa8f80a-rua-myeongrisajusangdamsa'
+    bottom_html = (
+        '<div class="bottom-btns">'
+        '<div class="bottom-btn-saju" style="text-align:center;padding:12px 6px;">📊 내 사주 해석 보기</div>'
+        f'<a href="{gpt_url}" target="_blank" class="bottom-btn-ai">🤖 AI 챗봇 무료상담</a>'
+        '</div>'
+    )
+    st.markdown(bottom_html, unsafe_allow_html=True)
 
 def page_ilun():
     data=st.session_state.saju_data
@@ -785,22 +864,21 @@ def page_ilun():
     if st.button('← 월운으로'): st.session_state.page='wolun'; st.rerun()
     hj_wg=hanja_gan(wg); hj_wj=hanja_ji(wj)
     hj_sg=hanja_gan(sg); hj_sj=hanja_ji(sj)
-    st.markdown(f'<div class="sel-info">{sy}년 {wm}월 ({hj_wg}{hj_wj}) 일운</div>', unsafe_allow_html=True)
-    # 달력: 양력 1일~말일 기준, 황경 기반 일주 계산
+    display_age = sel_su + 1
+    st.markdown(f'<div class="sel-info">{sy}년({display_age}세) {wm}월 ({hj_wg}{hj_wj}) 일운</div>', unsafe_allow_html=True)
+
     _,days_in_month=cal_mod.monthrange(sy,wm)
     first_weekday,_=cal_mod.monthrange(sy,wm)
-    first_wd=(first_weekday+1)%7  # 0=일요일
-    # 각 날짜의 일진+육신 계산
+    first_wd=(first_weekday+1)%7
     day_items=[]
     for d in range(1, days_in_month+1):
         dt_local=datetime(sy,wm,d,12,0,tzinfo=LOCAL_TZ)
         dt_solar=to_solar_time(dt_local)
         dj,dc,djidx=day_ganji_solar(dt_solar)
         g,j=dj[0],dj[1]
-        sg_six=six_for_stem(ilgan,g)
-        sj_six=six_for_branch(ilgan,j)
+        sg_six=six_for_stem(ilgan,g); sj_six=six_for_branch(ilgan,j)
         day_items.append({'day':d,'gan':g,'ji':j,'sg_six':sg_six,'sj_six':sj_six})
-    # 달력 HTML (육신 포함)
+
     html='<div class="cal-wrap">'
     html+=f'<div class="cal-header">{sy}년({hj_sg}{hj_sj}) {wm}월({hj_wg}{hj_wj})</div>'
     html+='<table class="cal-table"><thead><tr>'
@@ -810,8 +888,7 @@ def page_ilun():
     col_pos=first_wd
     for item in day_items:
         if col_pos==7: html+='</tr><tr>'; col_pos=0
-        d_num=item["day"]
-        dow=(first_wd+d_num-1)%7
+        d_num=item["day"]; dow=(first_wd+d_num-1)%7
         is_today=(sy==now.year and wm==now.month and d_num==now.day)
         cls='today-cell' if is_today else ''
         if dow==0: cls+=' sun'
@@ -823,8 +900,15 @@ def page_ilun():
     while col_pos%7!=0 and col_pos>0: html+='<td class="empty"></td>'; col_pos+=1
     html+='</tr></tbody></table></div>'
     st.markdown(html,unsafe_allow_html=True)
+
     gpt_url='https://chatgpt.com/g/g-68d90b2d8f448191b87fb7511fa8f80a-rua-myeongrisajusangdamsa'
-    st.markdown(f'<a href="{gpt_url}" target="_blank" class="ai-btn">🤖 AI 챗봇 무료 상담</a>', unsafe_allow_html=True)
+    bottom_html = (
+        '<div class="bottom-btns">'
+        '<div class="bottom-btn-saju" style="text-align:center;padding:12px 6px;">📊 내 사주 해석 보기</div>'
+        f'<a href="{gpt_url}" target="_blank" class="bottom-btn-ai">🤖 AI 챗봇 무료상담</a>'
+        '</div>'
+    )
+    st.markdown(bottom_html, unsafe_allow_html=True)
 
-
-if __name__=='__main__': main()
+if __name__=='__main__':
+    main()
