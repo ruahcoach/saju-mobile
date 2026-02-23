@@ -563,7 +563,7 @@ def main():
     st.set_page_config(page_title='이박사 만세력', layout='centered', page_icon='🔮', initial_sidebar_state='collapsed')
     st.markdown(MOBILE_CSS, unsafe_allow_html=True)
     st.markdown('<div class="page-hdr">만 세 력</div>', unsafe_allow_html=True)
-    for key,val in [('page','input'),('saju_data',None),('sel_daeun',0),('sel_seun',0),('sel_wolun',0),('show_geok_detail',False),('show_saryeong',False),('show_saju_interp',False)]:
+    for key,val in [('page','input'),('saju_data',None),('sel_daeun',0),('sel_seun',0),('sel_wolun',0),('show_geok_detail',False),('show_saju_interp',False)]:
         if key not in st.session_state: st.session_state[key]=val
     if st.session_state.page=='input': page_input()
     elif st.session_state.page=='saju': page_saju()
@@ -696,16 +696,7 @@ def page_saju():
         '</div>'
     )
     st.markdown(geok_box_html, unsafe_allow_html=True)
-    show_saryeong = st.session_state.get('show_saryeong', False)
-    if st.button('▶ 사령·당령·절입일 상세 보기' if not show_saryeong else '▲ 사령·당령·절입일 닫기', key='saryeong_btn'):
-        st.session_state['show_saryeong'] = not show_saryeong
-        st.rerun()
-    if show_saryeong:
-        st.markdown(geok_detail_html, unsafe_allow_html=True)
-
-    geok_card = find_geok_card(geok)
-    if geok_card:
-        st.markdown(render_geok_card_html(geok_card, show_detail=False), unsafe_allow_html=True)
+    st.markdown(geok_detail_html, unsafe_allow_html=True)
 
     daeun_rev=list(reversed(daeun))
     cols_du=st.columns(len(daeun))
@@ -796,6 +787,7 @@ def page_saju():
         geok_card2 = find_geok_card(geok)
         if geok_card2:
             st.markdown(render_geok_card_html(geok_card2, show_detail=True), unsafe_allow_html=True)
+            st.markdown(geok_detail_html, unsafe_allow_html=True)
 
 def page_wolun():
     data=st.session_state.saju_data
@@ -932,7 +924,7 @@ def page_ilun():
         html+=f'<td class="{cls.strip()}">{jie_html}<div class="dn">{d_num}</div>{lunar_html}<div style="font-size:9px;color:#888;">{sg6}</div><div style="font-size:14px;font-weight:bold;">{hj_dg}</div><div style="font-size:14px;font-weight:bold;">{hj_dj}</div><div style="font-size:9px;color:#888;">{sj6}</div></td>'
         col_pos+=1
     while col_pos%7!=0 and col_pos>0: html+='<td class="empty"></td>'; col_pos+=1
-    html+='</tr></tbody></table></div>'
+    html+='</tr></tbody></table></div>h'
     st.markdown(html,unsafe_allow_html=True)
 
     gpt_url='https://chatgpt.com/g/g-68d90b2d8f448191b87fb7511fa8f80a-rua-myeongrisajusangdamsa'
