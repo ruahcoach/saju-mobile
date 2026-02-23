@@ -119,13 +119,13 @@ def find_longitude_time_local(year, target_deg, approx_dt_local):
     if not found:
         a=(approx_dt_local-timedelta(days=1)).astimezone(timezone.utc)
         b=(approx_dt_local+timedelta(days=1)).astimezone(timezone.utc)
-    for _ in range(70):
+    for _ in range(100):
         mid=a+(b-a)/2; fm=f(mid); fa=f(a)
         if fm==0: a=b=mid; break
         if (fa<=0 and fm>=0) or (fa>=0 and fm<=0): b=mid
         else: a=mid
     res=(a+(b-a)/2).astimezone(LOCAL_TZ)
-    return res.replace(second=0,microsecond=0)
+    return res.replace(microsecond=0)
 
 def approx_guess_local(year):
     rough={'입춘':(2,4),'경칩':(3,6),'청명':(4,5),'입하':(5,6),'망종':(6,6),'소서':(7,7),'입추':(8,8),'백로':(9,8),'한로':(10,8),'입동':(11,7),'대설':(12,7),'소한':(1,6)}
@@ -674,8 +674,8 @@ def page_saju():
     saryeong_six = ten_god_for_stem(ilgan, saryeong_gan) if saryeong_gan else ''
     dangryeong_item = get_dangryeong(month_ji)
     prev_jeolip, next_jeolip = get_nearby_jeolip(data['dt_solar'])
-    prev_str = f"{prev_jeolip[0]} {prev_jeolip[1].strftime('%Y.%m.%d %H:%M')}" if prev_jeolip else '-'
-    next_str = f"{next_jeolip[0]} {next_jeolip[1].strftime('%Y.%m.%d %H:%M')}" if next_jeolip else '-'
+    prev_str = f"{prev_jeolip[0]} {prev_jeolip[1].strftime('%Y.%m.%d %H:%M:%S')}" if prev_jeolip else '-'
+    next_str = f"{next_jeolip[0]} {next_jeolip[1].strftime('%Y.%m.%d %H:%M:%S')}" if next_jeolip else '-'
 
     dr_desc = dangryeong_item["description"] if dangryeong_item else ""
     dr_mission = dangryeong_item["heaven_mission"] if dangryeong_item else "-"
