@@ -484,7 +484,7 @@ body,.stApp{background:var(--bg)!important;color:var(--text)!important;font-fami
 .ai-section{background:linear-gradient(135deg,#fff0f5,#ffe4ee);border:1px solid #f4a0c0;border-radius:12px;padding:12px;margin:12px 0 4px;}
 .bottom-btns{display:flex;gap:8px;margin:14px 0 8px;}
 .bottom-btn-saju{flex:1;background:linear-gradient(135deg,#c8b87a,#a0945e);border:none;border-radius:10px;padding:12px 6px;text-align:center;color:#fff;font-size:12px;font-weight:bold;text-decoration:none;display:block;}
-.bottom-btn-ai{flex:1;background:linear-gradient(135deg,#e8609a,#c0407a);border:none;border-radius:10px;padding:12px 6px;text-align:center;color:#fff;font-size:13px;font-weight:bold;text-decoration:none;display:block;}
+.bottom-btn-ai{flex:1;background:linear-gradient(135deg,#f0c4dc,#e8a0c4);border:none;border-radius:10px;padding:12px 6px;text-align:center;color:#2c3e7a;font-size:13px;font-weight:bold;text-decoration:none;display:block;}
 label{color:var(--text)!important;font-size:13px!important;}
 div[data-testid='stHorizontalBlock']{gap:4px!important;}
 div[data-testid='column']{padding:0 2px!important;}
@@ -572,6 +572,8 @@ def render_daeun_card(age, g, j, ilgan, active, btn_key, dy_year=0):
 def main():
     st.set_page_config(page_title='이박사 만세력', layout='centered', page_icon='🔮', initial_sidebar_state='collapsed')
     st.markdown(MOBILE_CSS, unsafe_allow_html=True)
+    # 모바일 핀치줌 허용
+    st.markdown('<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, maximum-scale=5.0">', unsafe_allow_html=True)
     st.markdown('<div class="page-hdr">만 세 력</div>', unsafe_allow_html=True)
     for key,val in [('page','input'),('saju_data',None),('sel_daeun',0),('sel_seun',0),('sel_wolun',0),('show_geok_detail',False),('show_saju_interp',False)]:
         if key not in st.session_state: st.session_state[key]=val
@@ -586,8 +588,8 @@ def page_input():
     c1,c2=st.columns(2)
     with c1: gender=st.radio('성별',['남','여'],horizontal=True)
     with c2: cal_type=st.radio('달력',['양력','음력','음력윤달'],horizontal=True)
-    birth_str=st.text_input('생년월일 (YYYYMMDD)',value='19840202',max_chars=8)
-    birth_time=st.text_input('출생시각 (HHMM, 모르면 0000)',value='0000',max_chars=4)
+    birth_str=st.text_input('생년월일 (YYYYMMDD)',value=st.session_state.get('_birth_str','19840202'),max_chars=8)
+    birth_time=st.text_input('출생시각 (HHMM, 모르면 0000)',value=st.session_state.get('_birth_time','0000'),max_chars=4)
     is_leap = (cal_type == '음력윤달')
     if st.button('🔮 사주 보기'):
         try:
@@ -633,7 +635,9 @@ def page_input():
             for idx,item in enumerate(daeun):
                 if item['start_age']<=age_now: sel_du=idx
             sel_su=min(age_now, 99)
-            st.session_state.saju_data={
+            st.session_state['_birth_str']=birth_str
+        st.session_state['_birth_time']=birth_time
+        st.session_state.saju_data={
                 'birth':(base_date.year,base_date.month,base_date.day,hh,mm_t),
                 'dt_solar':dt_solar,'gender':gender,'fp':fp,'daeun':daeun,
                 'seun':seun,'seun_start':seun_start,'geok':geok,'why':why,
@@ -699,8 +703,8 @@ def page_saju():
         f'&nbsp;&nbsp;·&nbsp;&nbsp;<span style="font-size:11px;color:var(--sub);">대운 {du_age}세 {du_dir}</span>'
         '</div>'
         '<div class="geok-why" style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(200,184,122,.4);">'
-        f'<b>사령(사령)</b>: {saryeong_gan}({saryeong_six}) · {saryeong_period} · {month_ji}월 절입+{day_from}일'
-        f'<br><b>당령(당령)</b>: {dr_mission} · {dr_period}<br>{dr_desc}'
+        f'<b>사령</b>: {saryeong_gan}({saryeong_six}) · {saryeong_period} · {month_ji}월 절입+{day_from}일'
+        f'<br><b>당령</b>: {dr_mission} · {dr_period}<br>{dr_desc}'
         f'<br><b>절입일</b>: 이전 {prev_str} / 이후 {next_str}'
         '</div>'
         '</div>'
@@ -785,6 +789,9 @@ def page_saju():
         '<div class="bottom-btns">'
         f'<a href="{gpt_url}" target="_blank" class="bottom-btn-ai">🤖 AI 챗봇 무료상담</a>'
         '</div>'
+        '<div style="text-align:center;margin-top:6px;font-size:11px;">'
+        '<a href="https://www.youtube.com/@psycologysalon" target="_blank" style="color:#8b6914;text-decoration:none;">🎥 2025 상담학박사 루아코치 유튜브</a>'
+        '</div>'
     )
     st.markdown(bottom_html, unsafe_allow_html=True)
     show_interp = st.session_state.get('show_saju_interp', False)
@@ -848,8 +855,11 @@ def page_wolun():
     gpt_url='https://chatgpt.com/g/g-68d90b2d8f448191b87fb7511fa8f80a-rua-myeongrisajusangdamsa'
     bottom_html = (
         '<div class="bottom-btns">'
-        '<div class="bottom-btn-saju" style="text-align:center;padding:12px 6px;">📊 내 사주 해석 보기</div>'
+        '<a href="https://open.kakao.com/o/sWJUYGDh" target="_blank" class="bottom-btn-saju" style="text-align:center;padding:12px 6px;text-decoration:none;">💬 이박사 오픈카카오톡</a>'
         f'<a href="{gpt_url}" target="_blank" class="bottom-btn-ai">🤖 AI 챗봇 무료상담</a>'
+        '</div>'
+        '<div style="text-align:center;margin-top:6px;font-size:11px;">'
+        '<a href="https://www.youtube.com/@psycologysalon" target="_blank" style="color:#8b6914;text-decoration:none;">🎥 2025 상담학박사 루아코치 유튜브</a>'
         '</div>'
     )
     st.markdown(bottom_html, unsafe_allow_html=True)
