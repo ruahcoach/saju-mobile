@@ -688,12 +688,12 @@ def page_saju():
         active=(age_i==sel_su)
         bdr='2px solid #8b6914' if active else '1px solid #c8b87a'
         bg_card='#d4c48a' if active else '#e8e4d8'
-        seun_html+=f'''<div style="display:flex;flex-direction:column;align-items:center;min-width:34px;border:{bdr};border-radius:8px;background:{bg_card};padding:2px 1px 2px;">
-<div style="font-size:7px;color:#6b5a3e;margin-bottom:1px;white-space:nowrap">{sy}</div>
-<div style="font-size:7px;color:#5a3e0a;margin-bottom:1px;white-space:nowrap">{six_g}</div>
-<div style="width:22px;height:22px;border-radius:4px;background:{bg_g};color:{tc_g};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;">{hj_sg}</div>
-<div style="width:22px;height:22px;border-radius:4px;background:{bg_j};color:{tc_j};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;margin-top:1px;">{hj_sj}</div>
-<div style="font-size:7px;color:#5a3e0a;margin-top:1px;white-space:nowrap">{six_j}</div>
+        seun_html+=f'''<div style="display:flex;flex-direction:column;align-items:center;min-width:38px;border:{bdr};border-radius:8px;background:{bg_card};padding:3px 2px 2px;">
+<div style="font-size:9px;color:#6b5a3e;margin-bottom:1px;white-space:nowrap">{sy}</div>
+<div style="font-size:9px;color:#5a3e0a;margin-bottom:1px;white-space:nowrap">{six_g}</div>
+<div style="width:30px;height:30px;border-radius:5px;background:{bg_g};color:{tc_g};display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;">{hj_sg}</div>
+<div style="width:30px;height:30px;border-radius:5px;background:{bg_j};color:{tc_j};display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;margin-top:1px;">{hj_sj}</div>
+<div style="font-size:9px;color:#5a3e0a;margin-top:1px;white-space:nowrap">{six_j}</div>
 </div>'''
     seun_html+='</div></div>'
     st.markdown(seun_html, unsafe_allow_html=True)
