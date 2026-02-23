@@ -787,13 +787,15 @@ def page_saju():
         '</div>'
     )
     st.markdown(bottom_html, unsafe_allow_html=True)
-    if st.button('📊 내 사주 해석 보기', key='show_saju_interp', use_container_width=True):
-        st.session_state['show_saju_interp'] = not st.session_state.get('show_saju_interp', False)
+    show_interp = st.session_state.get('show_saju_interp', False)
+    btn_label = '▲ 내 사주 해석 닫기' if show_interp else '📊 내 사주 해석 보기'
+    if st.button(btn_label, key='show_saju_interp_btn', use_container_width=True):
+        st.session_state['show_saju_interp'] = not show_interp
         st.rerun()
-    if st.session_state.get('show_saju_interp', False):
-        geok_card = find_geok_card(geok)
-        if geok_card:
-            st.markdown(render_geok_card_html(geok_card, show_detail=True), unsafe_allow_html=True)
+    if show_interp:
+        geok_card2 = find_geok_card(geok)
+        if geok_card2:
+            st.markdown(render_geok_card_html(geok_card2, show_detail=True), unsafe_allow_html=True)
 
 def page_wolun():
     data=st.session_state.saju_data
