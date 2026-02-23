@@ -683,20 +683,17 @@ def page_saju():
 
     geok_box_html = (
         '<div class="geok-box">'
-        f'<div class="geok-name">格 {geok}</div>'
-        f'<div class="geok-why">{why}</div>'
-        f'<div class="geok-why" style="margin-top:4px;">대운 {du_age}세 {du_dir}</div>'
+        f'<div class="geok-name">格 {geok} &nbsp;&nbsp;<span style="font-size:11px;color:var(--sub);font-weight:normal;">{why}</span>'
+        f'&nbsp;&nbsp;·&nbsp;&nbsp;<span style="font-size:11px;color:var(--sub);">대운 {du_age}세 {du_dir}</span>'
         '</div>'
-    )
-    geok_detail_html = (
-        '<div class="geok-why" style="padding:8px 12px;background:rgba(200,184,122,.1);border-radius:6px;margin-top:4px;">'
-        f'<b>司令(사령)</b>: {saryeong_gan}({saryeong_six}) · {saryeong_period} · {month_ji}월 절입+{day_from}일<br>'
-        f'<b>當令(당령)</b>: {dr_mission} · {dr_period}<br>{dr_desc}'
+        '<div class="geok-why" style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(200,184,122,.4);">'
+        f'<b>싸령(싸령)</b>: {saryeong_gan}({saryeong_six}) · {saryeong_period} · {month_ji}월 절입+{day_from}일'
+        f'<br><b>당령(당령)</b>: {dr_mission} · {dr_period}<br>{dr_desc}'
         f'<br><b>절입일</b>: 이전 {prev_str} / 이후 {next_str}'
+        '</div>'
         '</div>'
     )
     st.markdown(geok_box_html, unsafe_allow_html=True)
-    st.markdown(geok_detail_html, unsafe_allow_html=True)
 
     daeun_rev=list(reversed(daeun))
     cols_du=st.columns(len(daeun))
@@ -787,7 +784,6 @@ def page_saju():
         geok_card2 = find_geok_card(geok)
         if geok_card2:
             st.markdown(render_geok_card_html(geok_card2, show_detail=True), unsafe_allow_html=True)
-            st.markdown(geok_detail_html, unsafe_allow_html=True)
 
 def page_wolun():
     data=st.session_state.saju_data
