@@ -374,35 +374,45 @@ def decide_geok(inp):
     return f'{six}격',f'[폴백]→체(본기{BRANCH_MAIN[mb]}){six}격'
 
 def calc_wolun_accurate(year):
-    # 황경 기반 정확한 월운 계산
-    jie24=compute_jie24_times_calc(year)
-    jie24_next=compute_jie24_times_calc(year+1)
-    # 이전년도 소한/대한도 가져오기
+    # 황경 기반 정확한 월운 계산 (절기 시각 기준)
+    jie12_prev=compute_jie_times_calc(year-1)
+    jie12_this=compute_jie_times_calc(year)
+    jie12_next=compute_jie_times_calc(year+1)
     jie24_prev=compute_jie24_times_calc(year-1)
-    y_gidx=(year-4)%10
-    start_mg=month_start_gan_idx(y_gidx)
+    jie24_this=compute_jie24_times_calc(year)
+    jie24_next=compute_jie24_times_calc(year+1)
+    # year에 절기 시작일이 속하는 입절들 수집
+    collected=[]
+    for src_jie in [jie12_prev,jie12_this,jie12_next]:
+        for jname in JIE_ORDER:
+            if jname in src_jie:
+                t=to_solar_time(src_jie[jname])
+                if t.year==year:
+                    collected.append((t,jname))
+    collected.sort(key=lambda x:x[0])
+    # 각 절기에서 사주 월주 계산
     items=[]
-    for i in range(12):
-        gidx=(start_mg+i)%10
-        bidx=i
-        gan,ji=CHEONGAN[gidx],MONTH_JI[bidx]
-        t1_name,t2_name=MONTH_TO_2TERMS[ji]
-        def get_t(name,sources):
-            for src in sources:
-                if name in src:
-                    t=src[name]
-                    return to_solar_time(t) if t.utcoffset() is not None else t
-            return None
-        # 모든 소스에서 찾기 (이전/현재/다음년도)
-        sources=[jie24,jie24_next,jie24_prev]
-        t1=get_t(t1_name,sources)
-        t2=get_t(t2_name,sources)
-        next_bidx=(bidx+1)%12
-        next_t1_name=MONTH_TO_2TERMS[MONTH_JI[next_bidx]][0]
-        t_end=get_t(next_t1_name,sources)
-        items.append({'month':i+1,'gan':gan,'ji':ji,'t1':t1,'t2':t2,'t_end':t_end})
+    for t,jname in collected:
+        t_calc=t+timedelta(hours=1)
+        fp=four_pillars_from_solar(t_calc)
+        m_gan=fp['month'][0]; m_ji=fp['month'][1]
+        # 중간 절기 시각
+        t2_name=MONTH_TO_2TERMS[m_ji][1]
+        t2=None
+        for src in [jie24_this,jie24_prev,jie24_next]:
+            if t2_name in src:
+                cand=to_solar_time(src[t2_name])
+                if cand>t: t2=cand; break
+        # 다음 입절 시각
+        jie_idx=JIE_ORDER.index(jname)
+        next_jname=JIE_ORDER[(jie_idx+1)%12]
+        t_end=None
+        for src in [jie12_this,jie12_next,jie12_prev]:
+            if next_jname in src:
+                nt=to_solar_time(src[next_jname])
+                if nt>t: t_end=nt; break
+        items.append({'month':t.month,'gan':m_gan,'ji':m_ji,'t1':t,'t2':t2,'t_end':t_end})
     return items
-
 def calc_ilun_strip(start_dt, end_dt, day_stem, k_anchor=K_ANCHOR):
     items=[]
     cur=start_dt.replace(hour=12,minute=0,second=0,microsecond=0)
@@ -425,12 +435,12 @@ body,.stApp{background:var(--bg)!important;color:var(--text)!important;font-fami
 .stRadio label{color:var(--text)!important;}
 .stButton>button{background:linear-gradient(135deg,#c8b87a,#a0945e)!important;color:#fff!important;border:1px solid var(--acc)!important;border-radius:4px!important;width:100%!important;font-size:10px!important;font-weight:bold!important;padding:1px 0px!important;white-space:nowrap!important;overflow:hidden;min-height:0!important;height:20px!important;line-height:1!important;}
 .page-hdr{background:linear-gradient(135deg,#c8b87a,#a0945e);border-bottom:2px solid var(--acc);padding:10px;text-align:center;font-size:18px;font-weight:bold;color:#fff;letter-spacing:4px;margin-bottom:12px;}
-.saju-wrap{background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--r);padding:6px 4px;margin-bottom:4px;}
+.saju-wrap{background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--r);padding:6px 4px 3px;margin-bottom:4px;}
 .saju-table{width:100%;border-collapse:separate;border-spacing:3px;table-layout:fixed;}
 .saju-table th{font-size:11px;color:var(--sub);text-align:center;padding:4px 0;}
 .saju-table .lb td{font-size:10px;color:var(--sub);text-align:center;padding:2px 0;}
 .gcell,.jcell{text-align:center;padding:0;}
-.gcell div,.jcell div{display:flex;align-items:center;justify-content:center;width:100%;height:44px;border-radius:8px;font-weight:900;font-size:24px;border:1px solid rgba(0,0,0,.15);margin:1px auto;}
+.gcell div,.jcell div{display:flex;align-items:center;justify-content:center;width:100%;height:40px;border-radius:8px;font-weight:900;font-size:22px;border:1px solid rgba(0,0,0,.15);margin:1px auto;}
 .strip-outer{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:thin;padding:2px 0;}
 .strip-inner{display:inline-flex;flex-wrap:nowrap;gap:4px;padding:2px 4px;}
 .un-card{display:flex;flex-direction:column;align-items:center;min-width:52px;padding:4px 2px 6px;border:1px solid var(--bdr);border-radius:10px;background:var(--card);cursor:pointer;}
