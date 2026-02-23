@@ -636,8 +636,8 @@ def page_input():
                 if item['start_age']<=age_now: sel_du=idx
             sel_su=min(age_now, 99)
             st.session_state['_birth_str']=birth_str
-        st.session_state['_birth_time']=birth_time
-        st.session_state.saju_data={
+            st.session_state['_birth_time']=birth_time
+            st.session_state.saju_data={
                 'birth':(base_date.year,base_date.month,base_date.day,hh,mm_t),
                 'dt_solar':dt_solar,'gender':gender,'fp':fp,'daeun':daeun,
                 'seun':seun,'seun_start':seun_start,'geok':geok,'why':why,
