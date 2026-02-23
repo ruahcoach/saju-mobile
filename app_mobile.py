@@ -22,7 +22,7 @@ def get_kasi_key():
     return os.getenv('KASI_KEY')
 
 LOCAL_TZ = ZoneInfo('Asia/Seoul')
-BASE_MIN = 8 * 60 + 30
+BASE_MIN = 507  # Seoul longitude 126.9778 deg (UTC+8h 27m)
 
 def to_solar_time(dt_local):
     off = dt_local.utcoffset()
@@ -406,10 +406,10 @@ def get_nearby_jeolip(dt_solar):
     year = dt_solar.year
     all_jeolip = []
     for y in [year-1, year, year+1]:
-        jie12 = compute_jie_times_calc(y)
-        for name in JIE_ORDER:
-            if name in jie12:
-                t = to_solar_time(jie12[name])
+        jie24 = compute_jie24_times_calc(y)
+        for name in JIE24_ORDER:
+            if name in jie24:
+                t = to_solar_time(jie24[name])
                 all_jeolip.append((name, t))
     all_jeolip.sort(key=lambda x: x[1])
     prev_item = None
