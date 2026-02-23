@@ -699,7 +699,7 @@ def page_saju():
         f'&nbsp;&nbsp;·&nbsp;&nbsp;<span style="font-size:11px;color:var(--sub);">대운 {du_age}세 {du_dir}</span>'
         '</div>'
         '<div class="geok-why" style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(200,184,122,.4);">'
-        f'<b>싸령(싸령)</b>: {saryeong_gan}({saryeong_six}) · {saryeong_period} · {month_ji}월 절입+{day_from}일'
+        f'<b>사령(사령)</b>: {saryeong_gan}({saryeong_six}) · {saryeong_period} · {month_ji}월 절입+{day_from}일'
         f'<br><b>당령(당령)</b>: {dr_mission} · {dr_period}<br>{dr_desc}'
         f'<br><b>절입일</b>: 이전 {prev_str} / 이후 {next_str}'
         '</div>'
