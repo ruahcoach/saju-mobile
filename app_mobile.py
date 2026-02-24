@@ -229,7 +229,14 @@ def sidu_zi_start_gan(day_gan):
     raise ValueError('invalid day gan')
 
 def four_pillars_from_solar(dt_solar, k_anchor=K_ANCHOR):
-    jie12=compute_jie_times_calc(dt_solar.year)
+    jie12 = compute_jie_times_calc(dt_solar.year)
+
+    # 🔥 절기에도 동일 경도 보정 적용
+    if st.session_state.get('apply_solar', True):
+        lon = st.session_state.get('longitude', DEFAULT_LONGITUDE)
+        for k in jie12:
+            jie12[k] = to_solar_time(jie12[k], lon)
+
     jie_solar = jie12
     ipchun=jie_solar.get("입춘")
     y=dt_solar.year-1 if dt_solar<ipchun else dt_solar.year
@@ -669,12 +676,7 @@ def page_input():
                 dt_solar = to_solar_time(dt_local, longitude)
             else:
                 dt_solar = dt_local
-            # 🔎 ===== 여기 추가 =====
-            st.write("dt_local =", dt_local)
-            st.write("dt_solar =", dt_solar)
-            st.write("dt_solar hour/min =", dt_solar.hour, dt_solar.minute)
-            st.write("hour idx/ji =", hour_branch_idx_2300(dt_solar), JIJI[hour_branch_idx_2300(dt_solar)])
-            # =========================
+
             fp=four_pillars_from_solar(dt_solar)
             ilgan=fp['day'][0]
             jie12 = compute_jie_times_calc(dt_solar.year)
@@ -688,7 +690,12 @@ def page_input():
             for i in range(100):
                 sy=seun_start+i; off=(sy-4)%60
                 seun.append((sy,CHEONGAN[off%10],JIJI[off%12]))
-            jie24=compute_jie24_times_calc(dt_solar.year)
+            jie24 = compute_jie24_times_calc(dt_solar.year)
+
+            if apply_solar:
+                for k in jie24:
+                    jie24[k] = to_solar_time(jie24[k], longitude)
+
             jie24_solar = jie24
             pair=MONTH_TO_2TERMS[fp['month'][1]]
             def nearest_t(name):
@@ -979,7 +986,12 @@ def page_ilun():
     first_weekday,_=cal_mod.monthrange(sy,wm)
     first_wd=(first_weekday+1)%7
     # 이 달의 절기 계산
-    jie24_this=compute_jie24_times_calc(sy)
+    jie24_this = compute_jie24_times_calc(sy)
+
+    if apply_solar:
+        for k in jie24_this:
+            jie24_this[k] = to_solar_time(jie24_this[k], longitude)
+
     jie24_solar_ilun = jie24_this
     # 이 달의 절기 목록 (날짜 -> 절기명,시각)
     month_jie_map={}
