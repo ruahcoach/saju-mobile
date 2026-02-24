@@ -220,8 +220,9 @@ def day_ganji_solar(dt_solar, k_anchor=K_ANCHOR):
     cidx,jidx=idx60%10,idx60%12; return CHEONGAN[cidx]+JIJI[jidx],cidx,jidx
 
 def hour_branch_idx_2300(dt_solar):
-    mins=dt_solar.hour*60+dt_solar.minute; off=(mins-(23*60))%1440; return dt_mean.astimezone(LOCAL_TZ)
-
+    mins = dt_solar.hour * 60 + dt_solar.minute
+    off = (mins - (23 * 60)) % 1440
+    return off // 120
 def sidu_zi_start_gan(day_gan):
     for pair,start in SIDU_START.items():
         if day_gan in pair: return start
