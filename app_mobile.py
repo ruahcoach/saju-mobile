@@ -97,19 +97,44 @@ def jd_from_utc(dt_utc):
 def norm360(x): return x%360.0
 def wrap180(x): return (x+180.0)%360.0-180.0
 
+def delta_t_seconds(year):
+    y = year + 0.5
+    t = (y - 2000) / 100
+    return (62.92 
+            + 32.217*t 
+            + 55.89*t*t)
+
+
 def solar_longitude_deg(dt_utc):
-    JD=jd_from_utc(dt_utc); T=(JD-2451545.0)/36525.0
-    L0=norm360(280.46646+36000.76983*T+0.0003032*T*T)
-    M=norm360(357.52911+35999.05029*T-0.0001537*T*T)
-    Mr=math.radians(M)
-    C=((1.914602-0.004817*T-0.000014*T*T)*math.sin(Mr)+(0.019993-0.000101*T)*math.sin(2*Mr)+0.000289*math.sin(3*Mr))
-    theta=L0+C; Omega=125.04-1934.136*T
-    lam=theta-0.00569-0.00478*math.sin(math.radians(Omega))
+    # 1️⃣ ΔT 보정 (UT → TT)
+    dt_tt = dt_utc + timedelta(seconds=delta_t_seconds(dt_utc.year))
+
+    # 2️⃣ TT 기준 JD 계산
+    JD = jd_from_utc(dt_tt)
+
+    # 3️⃣ T 다시 계산
+    T = (JD - 2451545.0) / 36525.0
+
+    # 4️⃣ 태양 황경 계산
+    L0 = norm360(280.46646 + 36000.76983*T + 0.0003032*T*T)
+    M  = norm360(357.52911 + 35999.05029*T - 0.0001537*T*T)
+
+    Mr = math.radians(M)
+
+    C = ((1.914602 - 0.004817*T - 0.000014*T*T) * math.sin(Mr)
+         + (0.019993 - 0.000101*T) * math.sin(2*Mr)
+         + 0.000289 * math.sin(3*Mr))
+
+    theta = L0 + C
+    Omega = 125.04 - 1934.136*T
+
+    lam = theta - 0.00569 - 0.00478 * math.sin(math.radians(Omega))
+
     return norm360(lam)
 
 def find_longitude_time_local(year, target_deg, approx_dt_local):
-    a=(approx_dt_local-timedelta(days=3)).astimezone(timezone.utc)
-    b=(approx_dt_local+timedelta(days=3)).astimezone(timezone.utc)
+    a=(approx_dt_local-timedelta(days=5)).astimezone(timezone.utc)
+    b=(approx_dt_local+timedelta(days=5)).astimezone(timezone.utc)
     def f(dt_utc): return wrap180(solar_longitude_deg(dt_utc)-target_deg)
     scan,step=a,timedelta(hours=6); fa=f(scan); found=False
     while scan<b:
@@ -170,7 +195,7 @@ def sidu_zi_start_gan(day_gan):
 
 def four_pillars_from_solar(dt_solar, k_anchor=K_ANCHOR):
     jie12=compute_jie_times_calc(dt_solar.year)
-    jie_solar={name:to_solar_time(t) for name,t in jie12.items()}
+    jie_solar = jie12
     ipchun=jie_solar.get("입춘")
     y=dt_solar.year-1 if dt_solar<ipchun else dt_solar.year
     y_gidx=(y-4)%10; y_jidx=(y-4)%12
@@ -321,7 +346,7 @@ def calc_wolun_accurate(year):
     for src_jie in [jie12_prev,jie12_this,jie12_next]:
         for jname in JIE_ORDER:
             if jname in src_jie:
-                t=to_solar_time(src_jie[jname])
+                t = src_jie[jname]
                 if t.year==year: collected.append((t,jname))
     collected.sort(key=lambda x:x[0])
     items=[]
@@ -331,12 +356,12 @@ def calc_wolun_accurate(year):
         t2_name=MONTH_TO_2TERMS[m_ji][1]; t2=None
         for src in [jie24_this,jie24_prev,jie24_next]:
             if t2_name in src:
-                cand=to_solar_time(src[t2_name])
+                cand = src[t2_name]
                 if cand>t: t2=cand; break
         jie_idx=JIE_ORDER.index(jname); next_jname=JIE_ORDER[(jie_idx+1)%12]; t_end=None
         for src in [jie12_this,jie12_next,jie12_prev]:
             if next_jname in src:
-                nt=to_solar_time(src[next_jname])
+                nt = src[next_jname]
                 if nt>t: t_end=nt; break
         items.append({'month':t.month,'gan':m_gan,'ji':m_ji,'t1':t,'t2':t2,'t_end':t_end})
     return items
@@ -409,7 +434,7 @@ def get_nearby_jeolip(dt_solar):
         jie24 = compute_jie24_times_calc(y)
         for name in JIE24_ORDER:
             if name in jie24:
-                t = to_solar_time(jie24[name])
+                t = jie24[name]
                 all_jeolip.append((name, t))
     all_jeolip.sort(key=lambda x: x[1])
     prev_item = None
@@ -603,11 +628,11 @@ def page_input():
             dt_solar=to_solar_time(dt_local)
             fp=four_pillars_from_solar(dt_solar)
             ilgan=fp['day'][0]
-            jie12=compute_jie_times_calc(dt_solar.year)
-            jie12_solar={n:to_solar_time(t) for n,t in jie12.items()}
+            jie12 = compute_jie_times_calc(dt_solar.year)
+        
             year_gan=fp['year'][0]
             forward=(is_yang_stem(year_gan)==(gender=='남'))
-            start_age=dayun_start_age(dt_solar,jie12_solar,forward)
+            start_age=dayun_start_age(dt_solar,jie12,forward)
             daeun=build_dayun_list(fp['m_gidx'],fp['m_bidx'],forward,start_age)
             seun_start=base_date.year
             seun=[]
@@ -615,7 +640,7 @@ def page_input():
                 sy=seun_start+i; off=(sy-4)%60
                 seun.append((sy,CHEONGAN[off%10],JIJI[off%12]))
             jie24=compute_jie24_times_calc(dt_solar.year)
-            jie24_solar={n:to_solar_time(t) for n,t in jie24.items()}
+            jie24_solar = jie24
             pair=MONTH_TO_2TERMS[fp['month'][1]]
             def nearest_t(name):
                 cands=[(abs((t-dt_solar).total_seconds()),t) for n,t in jie24_solar.items() if n==name]
@@ -887,7 +912,7 @@ def page_ilun():
     first_wd=(first_weekday+1)%7
     # 이 달의 절기 계산
     jie24_this=compute_jie24_times_calc(sy)
-    jie24_solar_ilun={n:to_solar_time(t) for n,t in jie24_this.items()}
+    jie24_solar_ilun = jie24_this
     # 이 달의 절기 목록 (날짜 -> 절기명,시각)
     month_jie_map={}
     for jname,jt in jie24_solar_ilun.items():
@@ -942,7 +967,7 @@ def page_ilun():
         html+=f'<td class="{cls.strip()}">{jie_html}<div class="dn">{d_num}</div>{lunar_html}<div style="font-size:9px;color:#888;">{sg6}</div><div style="font-size:14px;font-weight:bold;">{hj_dg}</div><div style="font-size:14px;font-weight:bold;">{hj_dj}</div><div style="font-size:9px;color:#888;">{sj6}</div></td>'
         col_pos+=1
     while col_pos%7!=0 and col_pos>0: html+='<td class="empty"></td>'; col_pos+=1
-    html+='</tr></tbody></table></div>h'
+    html+='</tr></tbody></table></div>'
     st.markdown(html,unsafe_allow_html=True)
 
     gpt_url='https://chatgpt.com/g/g-68d90b2d8f448191b87fb7511fa8f80a-rua-myeongrisajusangdamsa'
