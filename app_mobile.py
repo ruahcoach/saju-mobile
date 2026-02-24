@@ -38,15 +38,21 @@ def to_solar_time(dt_local, longitude=DEFAULT_LONGITUDE):
     if dt_local.tzinfo is None:
         raise ValueError("timezone-aware datetime 필요")
 
+    # 1. UTC 변환
     dt_utc = dt_local.astimezone(timezone.utc)
 
+    # 2. 표준 자오선 계산
     offset_min = dt_local.utcoffset().total_seconds() / 60.0
     std_meridian = offset_min / 4.0
 
+    # 3. 평균태양시 보정
     mean_offset = (longitude - std_meridian) * 4.0
-    dt_mean = dt_utc + timedelta(minutes=mean_offset)
+    dt_mean_utc = dt_utc + timedelta(minutes=mean_offset)
 
-    return dt_mean.astimezone(LOCAL_TZ)
+    # 4. 다시 한국시간으로 변환 (★ 반드시 필요)
+    dt_mean_local = dt_mean_utc.astimezone(ZoneInfo("Asia/Seoul"))
+
+    return dt_mean_local
     
 CHEONGAN = ['갑','을','병','정','무','기','경','신','임','계']
 JIJI = ['자','축','인','묘','진','사','오','미','신','유','술','해']
