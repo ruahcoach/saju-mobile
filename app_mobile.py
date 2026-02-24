@@ -174,7 +174,6 @@ def find_longitude_time_local(year, target_deg, approx_dt_local):
         else: a=mid
     mid_local = (a+(b-a)/2).astimezone(LOCAL_TZ)
     return mid_local.replace(microsecond=0)
-
 def approx_guess_local(year):
     rough={'입춘':(2,4),'경칩':(3,6),'청명':(4,5),'입하':(5,6),'망종':(6,6),'소서':(7,7),'입추':(8,8),'백로':(9,8),'한로':(10,8),'입동':(11,7),'대설':(12,7),'소한':(1,6)}
     out={}
