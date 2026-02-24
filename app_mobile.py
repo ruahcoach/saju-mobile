@@ -46,7 +46,7 @@ def to_solar_time(dt_local, longitude=DEFAULT_LONGITUDE):
     mean_offset = (longitude - std_meridian) * 4.0
     dt_mean = dt_utc + timedelta(minutes=mean_offset)
 
-    return dt_mean
+    return dt_mean.astimezone(LOCAL_TZ)
     
 CHEONGAN = ['갑','을','병','정','무','기','경','신','임','계']
 JIJI = ['자','축','인','묘','진','사','오','미','신','유','술','해']
@@ -214,7 +214,7 @@ def day_ganji_solar(dt_solar, k_anchor=K_ANCHOR):
     cidx,jidx=idx60%10,idx60%12; return CHEONGAN[cidx]+JIJI[jidx],cidx,jidx
 
 def hour_branch_idx_2300(dt_solar):
-    mins=dt_solar.hour*60+dt_solar.minute; off=(mins-(23*60))%1440; return off//120
+    mins=dt_solar.hour*60+dt_solar.minute; off=(mins-(23*60))%1440; return dt_mean.astimezone(LOCAL_TZ)
 
 def sidu_zi_start_gan(day_gan):
     for pair,start in SIDU_START.items():
