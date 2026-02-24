@@ -22,7 +22,7 @@ def get_kasi_key():
     return os.getenv('KASI_KEY')
 
 LOCAL_TZ = ZoneInfo('Asia/Seoul')
-BASE_MIN = 540  # KST = UTC+9:00 = 540min (절기 시각을 KST 그대로 표시)
+BASE_MIN = 510  # 서울(동경127.5°) 진태양시 = UTC+8:30 = 510min
 
 def to_solar_time(dt_local):
     off = dt_local.utcoffset()
@@ -149,7 +149,7 @@ def find_longitude_time_local(year, target_deg, approx_dt_local):
         if fm==0: a=b=mid; break
         if (fa<=0 and fm>=0) or (fa>=0 and fm<=0): b=mid
         else: a=mid
-    res=(a+(b-a)/2).astimezone(LOCAL_TZ)
+    res=to_solar_time((a+(b-a)/2).astimezone(LOCAL_TZ))
     return res.replace(microsecond=0)
 
 def approx_guess_local(year):
