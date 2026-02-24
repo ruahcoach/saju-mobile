@@ -34,20 +34,25 @@ city_options = {
     "울산": 129.3114,
     "제주": 126.5312,
 }
-def to_solar_time(dt_local: datetime, longitude=DEFAULT_LONGITUDE):
+def to_solar_time(dt_local, longitude=DEFAULT_LONGITUDE):
     if dt_local.tzinfo is None:
         raise ValueError("timezone-aware datetime 필요")
 
-    # ✅ DST(서머타임) 제외한 '표준 오프셋'으로 표준자오선 계산
+    # 1️⃣ 표준 자오선 계산 (DST 제외)
     off = dt_local.utcoffset() or timedelta(0)
     dst = dt_local.dst() or timedelta(0)
-    base_off = off - dst  # 예: 1988년엔 off=+10, dst=+1 → base_off=+9
+    base_off = off - dst
+    std_meridian = (base_off.total_seconds()/60)/4
 
-    std_meridian = (base_off.total_seconds() / 60.0) / 4.0  # (분)/4 = 경도
-    mean_offset_min = (longitude - std_meridian) * 4.0
+    # 2️⃣ 경도 보정
+    mean_offset = (longitude - std_meridian) * 4
 
-    # ✅ UTC 왕복하지 말고 '로컬에서 분만 보정'
-    return (dt_local + timedelta(minutes=mean_offset_min)).replace(microsecond=0)
+    # 3️⃣ 방정시 보정 추가
+    eot = equation_of_time_minutes(dt_local.astimezone(timezone.utc))
+
+    total_offset = mean_offset + eot
+
+    return (dt_local + timedelta(minutes=total_offset)).replace(microsecond=0)
     
 CHEONGAN = ['갑','을','병','정','무','기','경','신','임','계']
 JIJI = ['자','축','인','묘','진','사','오','미','신','유','술','해']
