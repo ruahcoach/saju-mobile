@@ -34,25 +34,20 @@ city_options = {
     "울산": 129.3114,
     "제주": 126.5312,
 }
-def to_solar_time(dt_local, longitude=DEFAULT_LONGITUDE):
+def to_solar_time(dt_local: datetime, longitude=DEFAULT_LONGITUDE):
     if dt_local.tzinfo is None:
         raise ValueError("timezone-aware datetime 필요")
 
-    # 1. UTC 변환
-    dt_utc = dt_local.astimezone(timezone.utc)
+    # ✅ DST(서머타임) 제외한 '표준 오프셋'으로 표준자오선 계산
+    off = dt_local.utcoffset() or timedelta(0)
+    dst = dt_local.dst() or timedelta(0)
+    base_off = off - dst  # 예: 1988년엔 off=+10, dst=+1 → base_off=+9
 
-    # 2. 표준 자오선 계산
-    offset_min = dt_local.utcoffset().total_seconds() / 60.0
-    std_meridian = offset_min / 4.0
+    std_meridian = (base_off.total_seconds() / 60.0) / 4.0  # (분)/4 = 경도
+    mean_offset_min = (longitude - std_meridian) * 4.0
 
-    # 3. 평균태양시 보정
-    mean_offset = (longitude - std_meridian) * 4.0
-    dt_mean_utc = dt_utc + timedelta(minutes=mean_offset)
-
-    # 4. 다시 한국시간으로 변환 (★ 반드시 필요)
-    dt_mean_local = dt_mean_utc.astimezone(ZoneInfo("Asia/Seoul"))
-
-    return dt_mean_local
+    # ✅ UTC 왕복하지 말고 '로컬에서 분만 보정'
+    return (dt_local + timedelta(minutes=mean_offset_min)).replace(microsecond=0)
     
 CHEONGAN = ['갑','을','병','정','무','기','경','신','임','계']
 JIJI = ['자','축','인','묘','진','사','오','미','신','유','술','해']
@@ -669,6 +664,12 @@ def page_input():
                 dt_solar = to_solar_time(dt_local, longitude)
             else:
                 dt_solar = dt_local
+            # 🔎 ===== 여기 추가 =====
+            st.write("dt_local =", dt_local)
+            st.write("dt_solar =", dt_solar)
+            st.write("dt_solar hour/min =", dt_solar.hour, dt_solar.minute)
+            st.write("hour idx/ji =", hour_branch_idx_2300(dt_solar), JIJI[hour_branch_idx_2300(dt_solar)])
+            # =========================
             fp=four_pillars_from_solar(dt_solar)
             ilgan=fp['day'][0]
             jie12 = compute_jie_times_calc(dt_solar.year)
