@@ -14,6 +14,8 @@ try:
 except Exception:
     HAS_LUNAR = False
 
+from korea_tz_history import wall_to_true_solar_time   # ← 이 줄 추가
+
 def get_kasi_key():
     try:
         val = st.secrets.get('KASI_KEY')
@@ -35,24 +37,8 @@ city_options = {
     "제주": 126.5312,
 }
 def to_solar_time(dt_local, longitude=DEFAULT_LONGITUDE):
-    if dt_local.tzinfo is None:
-        raise ValueError("timezone-aware datetime 필요")
-
-    # 1️⃣ 표준 자오선 계산 (DST 제외)
-    off = dt_local.utcoffset() or timedelta(0)
-    dst = dt_local.dst() or timedelta(0)
-    base_off = off - dst
-    std_meridian = (base_off.total_seconds()/60)/4
-
-    # 2️⃣ 경도 보정
-    mean_offset = (longitude - std_meridian) * 4
-
-    # 3️⃣ 방정시 보정 추가
-    eot = equation_of_time_minutes(dt_local.astimezone(timezone.utc))
-
-    total_offset = mean_offset + eot
-
-    return (dt_local + timedelta(minutes=total_offset)).replace(microsecond=0)
+    """역사적 표준시 + 썸머타임 + 균시차 완전 반영"""
+    return wall_to_true_solar_time(dt_local, longitude, apply_eot=True)
     
 CHEONGAN = ['갑','을','병','정','무','기','경','신','임','계']
 JIJI = ['자','축','인','묘','진','사','오','미','신','유','술','해']
