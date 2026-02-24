@@ -22,15 +22,32 @@ def get_kasi_key():
     return os.getenv('KASI_KEY')
 
 LOCAL_TZ = ZoneInfo('Asia/Seoul')
-BASE_MIN = 510  # 서울(동경127.5°) 진태양시 = UTC+8:30 = 510min
+DEFAULT_LONGITUDE = 126.9780  # 서울 기본값
 
-def to_solar_time(dt_local):
-    off = dt_local.utcoffset()
-    if off is None: raise ValueError('dt_local must be timezone-aware')
-    off_min = int(off.total_seconds() // 60)
-    delta = off_min - BASE_MIN
-    return dt_local - timedelta(minutes=delta)
+city_options = {
+    "서울": 126.9780,
+    "부산": 129.0756,
+    "대구": 128.6014,
+    "인천": 126.7052,
+    "광주": 126.8526,
+    "대전": 127.3845,
+    "울산": 129.3114,
+    "제주": 126.5312,
+}
+def to_solar_time(dt_local, longitude=DEFAULT_LONGITUDE):
+    if dt_local.tzinfo is None:
+        raise ValueError("timezone-aware datetime 필요")
 
+    dt_utc = dt_local.astimezone(timezone.utc)
+
+    offset_min = dt_local.utcoffset().total_seconds() / 60.0
+    std_meridian = offset_min / 4.0
+
+    mean_offset = (longitude - std_meridian) * 4.0
+    dt_mean = dt_utc + timedelta(minutes=mean_offset)
+
+    return dt_mean
+    
 CHEONGAN = ['갑','을','병','정','무','기','경','신','임','계']
 JIJI = ['자','축','인','묘','진','사','오','미','신','유','술','해']
 HANJA_GAN = ['甲','乙','丙','丁','戊','己','庚','辛','壬','癸']
@@ -98,13 +115,24 @@ def norm360(x): return x%360.0
 def wrap180(x): return (x+180.0)%360.0-180.0
 
 def delta_t_seconds(year):
-    y = year + 0.5
-    t = (y - 2000) / 100
-    return (62.92 
-            + 32.217*t 
-            + 55.89*t*t)
+    y = year
+    if 2005 <= y <= 2050:
+        t = y - 2000
+        return 62.92 + 0.32217*t + 0.005589*t*t
+    elif 1986 <= y < 2005:
+        t = y - 2000
+        return 63.86 + 0.3345*t - 0.060374*t*t \
+               + 0.0017275*t**3 + 0.000651814*t**4 \
+               + 0.00002373599*t**5
+    else:
+        t = (y - 2000)/100
+        return 62.92 + 32.217*t + 55.89*t*t
 
-
+def equation_of_time_minutes(dt_utc):
+    doy = dt_utc.timetuple().tm_yday
+    B = math.radians((360/365) * (doy - 81))
+    return 9.87*math.sin(2*B) - 7.53*math.cos(B) - 1.5*math.sin(B)
+    
 def solar_longitude_deg(dt_utc):
     # 1️⃣ ΔT 보정 (UT → TT)
     dt_tt = dt_utc + timedelta(seconds=delta_t_seconds(dt_utc.year))
@@ -133,8 +161,8 @@ def solar_longitude_deg(dt_utc):
     return norm360(lam)
 
 def find_longitude_time_local(year, target_deg, approx_dt_local):
-    a=(approx_dt_local-timedelta(days=5)).astimezone(timezone.utc)
-    b=(approx_dt_local+timedelta(days=5)).astimezone(timezone.utc)
+    a=(approx_dt_local-timedelta(days=7)).astimezone(timezone.utc)
+    b=(approx_dt_local+timedelta(days=7)).astimezone(timezone.utc)
     def f(dt_utc): return wrap180(solar_longitude_deg(dt_utc)-target_deg)
     scan,step=a,timedelta(hours=6); fa=f(scan); found=False
     while scan<b:
@@ -149,8 +177,8 @@ def find_longitude_time_local(year, target_deg, approx_dt_local):
         if fm==0: a=b=mid; break
         if (fa<=0 and fm>=0) or (fa>=0 and fm<=0): b=mid
         else: a=mid
-    res=to_solar_time((a+(b-a)/2).astimezone(LOCAL_TZ))
-    return res.replace(microsecond=0)
+    mid_local = (a+(b-a)/2).astimezone(LOCAL_TZ)
+    return mid_local.replace(microsecond=0)
 
 def approx_guess_local(year):
     rough={'입춘':(2,4),'경칩':(3,6),'청명':(4,5),'입하':(5,6),'망종':(6,6),'소서':(7,7),'입추':(8,8),'백로':(9,8),'한로':(10,8),'입동':(11,7),'대설':(12,7),'소한':(1,6)}
@@ -351,7 +379,7 @@ def calc_wolun_accurate(year):
     collected.sort(key=lambda x:x[0])
     items=[]
     for t,jname in collected:
-        t_calc=t+timedelta(hours=1); fp=four_pillars_from_solar(t_calc)
+        t_calc = t + timedelta(seconds=1); fp=four_pillars_from_solar(t_calc)
         m_gan=fp['month'][0]; m_ji=fp['month'][1]
         t2_name=MONTH_TO_2TERMS[m_ji][1]; t2=None
         for src in [jie24_this,jie24_prev,jie24_next]:
@@ -412,7 +440,7 @@ def get_saryeong_gan(month_branch, day_from_jieqi):
         return sr["late_15"], "후반15일"
 
 def get_dangryeong(month_branch, dt_solar=None, jie24_solar=None):
-    boundary_jie = {'오':'하지','뮳':'춤분','유':'추분','자':'동지','해':'입동'}
+    boundary_jie = {'오':'하지','묘':'춘분','유':'추분','자':'동지','해':'입동'}
     if month_branch in boundary_jie and dt_solar and jie24_solar:
         jie_name = boundary_jie[month_branch]
         jie_dt = jie24_solar.get(jie_name)
@@ -613,6 +641,11 @@ def page_input():
     c1,c2=st.columns(2)
     with c1: gender=st.radio('성별',['남','여'],horizontal=True)
     with c2: cal_type=st.radio('달력',['양력','음력','음력윤달'],horizontal=True)
+    city = st.selectbox("출생지", list(city_options.keys()))
+    longitude = city_options[city]
+
+    apply_solar = st.checkbox("진태양시(경도) 보정 적용", value=True)
+    
     birth_str=st.text_input('생년월일 (YYYYMMDD)',value=st.session_state.get('_birth_str','19840202'),max_chars=8)
     birth_time=st.text_input('출생시각 (HHMM, 모르면 0000)',value=st.session_state.get('_birth_time','0000'),max_chars=4)
     is_leap = (cal_type == '음력윤달')
@@ -625,7 +658,10 @@ def page_input():
             base_date=date(y,m,d)
             if cal_type in ('음력','음력윤달') and HAS_LUNAR: base_date=lunar_to_solar(y,m,d,is_leap)
             dt_local=datetime.combine(base_date,time(hh,mm_t)).replace(tzinfo=LOCAL_TZ)
-            dt_solar=to_solar_time(dt_local)
+            if apply_solar:
+                dt_solar = to_solar_time(dt_local, longitude)
+            else:
+                dt_solar = dt_local
             fp=four_pillars_from_solar(dt_solar)
             ilgan=fp['day'][0]
             jie12 = compute_jie_times_calc(dt_solar.year)
@@ -669,6 +705,8 @@ def page_input():
                 't1':t1,'t2':t2,'day_from_jieqi':day_from_jieqi,
                 'ilgan':ilgan,'start_age':start_age,'forward':forward,
                 'jie24_solar':jie24_solar,
+                'longitude': longitude,
+                'apply_solar': apply_solar,
             }
             st.session_state.sel_daeun=sel_du
             st.session_state.sel_seun=sel_su
@@ -691,7 +729,13 @@ def page_saju():
     if st.button('← 입력으로'):
         st.session_state.page='input'; st.rerun()
 
-    now_solar=to_solar_time(now)
+    longitude = data.get('longitude', DEFAULT_LONGITUDE)
+    apply_solar = data.get('apply_solar', True)
+
+    if apply_solar:
+        now_solar = to_solar_time(now, longitude)
+    else:
+        now_solar = now
     today_fp=four_pillars_from_solar(now_solar)
     yg,yj=today_fp['year'][0],today_fp['year'][1]
     dg,dj=today_fp['day'][0],today_fp['day'][1]
@@ -704,7 +748,16 @@ def page_saju():
     st.markdown(f'<div style="text-align:center;font-size:11px;color:#8b6914;margin:-4px 0 6px;padding:2px 0;">입력 생년월일시 · 서기 {birth_display}</div>', unsafe_allow_html=True)
 
     st.markdown(render_saju_table(fp,ilgan), unsafe_allow_html=True)
+    longitude = data.get('longitude', DEFAULT_LONGITUDE)
+    apply_solar = data.get('apply_solar', True)
 
+    calc_info = f"🔎 기준: 경도 {longitude:.2f}° / "
+    calc_info += "진태양시 보정 적용" if apply_solar else "표준시 기준 계산"
+
+    st.markdown(
+        f'<div style="text-align:center;font-size:10px;color:#6b5a3e;margin:-6px 0 4px;">{calc_info}</div>',
+        unsafe_allow_html=True
+    )
     month_ji=fp['month'][1]
     day_from=data['day_from_jieqi']
     du_dir='순행' if data['forward'] else '역행'
@@ -893,6 +946,8 @@ def page_ilun():
     data=st.session_state.saju_data
     if not data or 'fp' not in data: st.session_state.page='input'; st.rerun(); return
     now=datetime.now(LOCAL_TZ)
+    longitude = data.get('longitude', DEFAULT_LONGITUDE)
+    apply_solar = data.get('apply_solar', True)
     ilgan=data['ilgan']
     seun=data["seun"]
     sel_su=st.session_state.sel_seun
@@ -934,7 +989,11 @@ def page_ilun():
     day_items=[]
     for d in range(1, days_in_month+1):
         dt_local=datetime(sy,wm,d,12,0,tzinfo=LOCAL_TZ)
-        dt_solar=to_solar_time(dt_local)
+
+        if apply_solar:
+            dt_solar = to_solar_time(dt_local, longitude)
+        else:
+            dt_solar = dt_local
         dj,dc,djidx=day_ganji_solar(dt_solar)
         g,j=dj[0],dj[1]
         sg_six=six_for_stem(ilgan,g); sj_six=six_for_branch(ilgan,j)
