@@ -38,7 +38,10 @@ city_options = {
 }
 def to_solar_time(dt_local, longitude=DEFAULT_LONGITUDE):
     """역사적 표준시 + 썸머타임 + 균시차 완전 반영"""
-    return wall_to_true_solar_time(dt_local, longitude, apply_eot=True)
+    result = wall_to_true_solar_time(dt_local, longitude, apply_eot=True)
+    if result.tzinfo is None:
+        result = result.replace(tzinfo=LOCAL_TZ)
+    return result
     
 CHEONGAN = ['갑','을','병','정','무','기','경','신','임','계']
 JIJI = ['자','축','인','묘','진','사','오','미','신','유','술','해']
